@@ -1,0 +1,356 @@
+# 栖页 · 私人图书馆
+
+面向电脑与 NAS 的自托管内容库：保存原文件，用 Web 管理和阅读漫画、插画、小说及文章，并在本地运行标签、角色候选和内容分级模型。
+
+当前版本是可运行的首版。真实平台账号联调、长期增量同步和不同 NAS 的兼容性仍需逐项验证；界面显示每个平台的具体能力，不把未实现能力显示为已完成。
+
+项目分为三个独立目录：
+
+| 目录 | 内容 |
+| --- | --- |
+| `web/` | Vue / TypeScript 网页管理、阅读与设备绑定界面 |
+| `app/` | Flutter 手机应用，Android / iOS 原生界面 |
+| `server/` | FastAPI 服务、平台采集、本地 AI、数据库迁移和后端测试 |
+
+部署文件在 `deploy/`，维护脚本在 `scripts/`，文档在 `docs/`，Git 配置在 `config/git/`。根目录 `.gitignore` 为新克隆提供即时忽略保护。Python 包仍叫 `app`，例如 `server/app/main.py`；Docker Compose 服务仍叫 `app`。媒体、模型、导入目录与数据库卷的路径不随源码目录调整。以下命令均从项目根目录执行。
+
+原根目录文件现在的位置：
+
+| 文件 | 位置 |
+| --- | --- |
+| Compose、Intel 覆盖、Dockerfile、`.env`、`.env.example` | `deploy/` |
+| Docker 构建忽略规则 | `deploy/Dockerfile.dockerignore` |
+| README、CONTRACT | `docs/` |
+| pytest 配置 | `server/pytest.ini` |
+| Git 忽略规则、文件属性 | `.gitignore` 与 `config/git/ignore` 保持一致；属性在 `config/git/attributes` |
+
+## 已实现的本地流程
+
+- 管理员登录、HttpOnly 会话、写请求来源校验、凭据加密。
+- 图片、ZIP/CBZ、UTF-8 TXT/Markdown 上传；限制在导入根目录内的文件夹导入。
+- MySQL 元数据、原文件哈希存储、内容去重、NAS 存储标记、写后校验、缺失文件检查。
+- Pixiv、E-Hentai、哔咔、JM 和本地书库分别存储，提供独立入口及数量统计。
+- 内置 Mihomo：订阅链接导入、自动更新、节点选择与测速，无需单独运行 Clash。
+- Web 书库、搜索筛选、标签编辑、作品详情、漫画/文本阅读、阅读进度及 CBZ/ZIP 导出。
+- Pixiv 小说章节与分页、多 P 页序、官方系列目录和手动上下集关联；作者／标签订阅可选择图像、小说或全部。
+- Pixiv 下载在同一任务获取详情与完整正文；其他平台保持封面优先、正文单独排队。目录浏览仍可只建档封面和资料；随机请求间隔、暂停恢复、失败重试和租约恢复保持。
+- 本地 WD ONNX 图片标签、词表内二次元角色候选、逐页内容分级及证据记录；人工标签和人工分级保留。
+- AniList 角色／漫画名联网检索；SauceNAO 单张截图或书页图搜，用户确认后才发送，结果经人工确认追加角色标签。
+- Intel OpenVINO GPU 可选加速，自动／Intel 模式支持 CPU 回退，页面显示实际推理设备和回退原因。
+- 文章关键词分类明确标为规则功能，不冒充语言模型推理。
+- Docker Compose、Alembic 数据库迁移、完整性校验备份脚本。
+- Android APK 在线发布、检查更新、校验下载与系统安装入口；App 列表滚动加载和下拉刷新。详见 [App 说明](../app/README.md#在线更新与列表加载)。
+- 手机扫码绑定：短时一次性二维码、可撤销的设备凭据，手机可阅读书库、保存进度和请求正文下载。
+
+## Pixiv 主副账号分工
+
+在独立的「下载账号」页面选择一个检索主账号，勾选任意数量的下载副账号，再保存启用；账号数量没有软件配额，与任务中心的 1–8 并发上限分开设置。页面提供账号搜索、批量勾选、添加登录、移除和每个账号的运行／完成／失败任务数。进行 Pixiv 官方授权前请先切换到对应账号，避免重复授权同一账号。相同账号记录或可识别的同用户／同令牌会被拒绝。
+
+主账号负责关注同步、作者／收藏／系列目录、检索发现、作品资料与封面；副账号负责漫画原图和小说正文。任务领取时优先选择运行任务少的副账号，同等空闲时轮换，分配保存到任务。暂停或重启沿用原分配，账号出错不自动换号；用户明确重试时才重新分配。已移除的账号不再分配新任务；原来绑定该账号的排队任务需要明确重试，仍可在页面查看失效引用并取消勾选。
+
+下载阶段为取得原图目录并确认权限，副账号仍会访问该作品的详情或正文接口，不使用主账号权限绕过副账号的访问限制。副账号过期或无权访问时正文任务失败，保留已有资料与封面，不自动用主账号重试。
+
+启用后，现有订阅和排队任务也使用这套分工，已开始的请求继续使用开始时取得的账号。改变主账号后，旧账号范围的作者／私人收藏任务会停止并要求重新获取，避免把不同账号的目录或私密数据混在一起。副账号下载正文不覆盖主账号已保存的标题、标签和分级。关闭分工后恢复原有的任务指定账号／默认账号选择。
+
+Pixiv 请求下载时，在同一个后台任务获取详情和完整正文，不再先建一个只读详情任务再排正文；单账号只请求一次作品详情，启用主副分工时主账号读取资料、副账号读取下载所需的信息和内容。新作品成功后一起入库，失败不创建只有详情的新条目；已有资料与封面保留。目录浏览／只取封面的操作仍不下载正文，其他平台保持原流程。
+
+账号分工由服务器统一执行，Android 0.4.1 无需更新。已有文件、阅读进度及分平台书库不变；平台 429 退避由全部并发任务共享，不因分配其他账号而跳过。账号状态表示添加时验证情况，实际会话失效仍会在任务中显示；账号页统计反映当前任务状态，不是每次历史尝试的累计次数。
+
+## 电脑 / NAS 部署（MySQL）
+
+要求 Docker Engine / Docker Desktop 及 Compose。NAS 需要支持容器、足够内存，以及匹配 CPU 架构的镜像与依赖。
+
+```sh
+python scripts/bootstrap_env.py
+python scripts/compose.py up -d --build
+```
+
+统一部署入口会明确使用 `deploy/.env` 和 `deploy/compose.yaml`，同时把 Compose 项目目录固定为仓库根目录；因此 `./data`、`./imports`、`./models` 仍指向原位置，项目名和已有数据库卷保持。不要在 `deploy/` 内直接运行不带参数的 `docker compose`。
+
+也可使用 PowerShell 的 `./deploy/run.ps1 up -d --build` 或 Linux 的 `sh deploy/run.sh up -d --build`。其他 Compose 参数原样追加，例如 `python scripts/compose.py logs --tail 100 app`、`python scripts/compose.py exec -T app python -V`。Intel 覆盖配置使用 `python scripts/compose.py --intel ...`、`./deploy/run.ps1 -Intel ...` 或 `sh deploy/run.sh --intel ...`。
+
+根目录 `.gitignore` 在克隆后立即排除私有环境文件、运行数据、签名密钥和构建产物，与 `config/git/ignore` 保持一致。首次克隆或整体移动仓库后执行 `python scripts/configure_git.py`，将当前仓库的忽略规则和文件属性指向 `config/git/ignore`、`config/git/attributes`。项目有自己的 `.git` 时，初始化脚本在生成凭据前自动执行该配置。下载 ZIP 或未安装 Git 的 NAS 也可正常初始化。`deploy/.gitignore` 另行保护私有环境文件，`deploy/.env.example` 可以提交。
+
+打开 <http://localhost:8800>。登录密码位于本地 `deploy/.env` 的 `LIBRARY_ADMIN_PASSWORD`。初始化脚本不会打印凭据，不会覆盖已有 `deploy/.env`。
+
+Linux/NAS 中应用容器默认使用 UID `10001`。请让宿主机的书库目录归该 UID 所有或通过 ACL 授予读写权限；导入目录与模型目录需要读取权限。数据库使用独立 Docker volume，不把 MySQL 数据目录映射到 SMB/NFS 共享。
+
+### NAS 文件共享
+
+独立电脑运行时，先在操作系统中挂载 SMB/NFS 共享，再配置 `deploy/.env`：
+
+```dotenv
+LIBRARY_DATA_PATH=/mnt/nas/qiye-library
+LIBRARY_IMPORT_PATH=/mnt/nas/imports
+LIBRARY_MODEL_PATH=/opt/qiye/models
+```
+
+`LIBRARY_DATA_PATH` 根目录必须存在 `.library-storage` 文本文件，内容为 `qiye-library-v1` 加换行。默认目录由初始化脚本创建；改用新的共享目录时需一起迁移该标记。挂载失效后，应用会报告存储不可用，避免把文件误写到空挂载点。
+
+Windows 可以使用 Docker Desktop 支持的本地盘路径，例如 `E:/LibraryData`。映射盘/UNC 路径能否被容器访问取决于 Docker 的共享配置，不能仅凭 Windows 资源管理器可访问就判定部署成功。实际 NAS 上需验证写入、重命名、权限、断线恢复和大文件读取。
+
+### 分平台书库
+
+四个平台和本地上传使用独立目录，元数据仍由同一个 MySQL 管理：
+
+```text
+LIBRARY_DATA_PATH/
+  collections/
+    pixiv/blobs/
+    ehentai/blobs/
+    picacg/blobs/
+    jm/blobs/
+    local/blobs/
+```
+
+平台下载按来源自动入库；手动上传和文件夹导入归本地书库。同一平台按哈希去重，不同平台分别保存原文件。Web 可查看全部内容，也可进入各自书库，例如 `#library/pixiv`。
+
+旧版 `blobs/` 文件仍可读取。升级前先备份，再检查和迁移已有作品：
+
+```sh
+python scripts/compose.py exec -T app python -m app.collection_migration
+python scripts/compose.py exec -T app python -m app.collection_migration --apply
+```
+
+迁移逐项复制并核对 SHA-256，完整成功后才修改该作品的数据库路径；支持重复执行，保留旧文件，不自动删除。可添加 `--source pixiv` 或 `--item-id ID` 缩小范围。原生 Python 部署运行相同模块前需明确设置 `LIBRARY_DATABASE_URL`。
+
+### 启用本地 AI
+
+```sh
+python scripts/download_model.py
+```
+
+脚本下载固定版本的 WD SwinV2 Tagger v3（约 446 MiB），校验模型 SHA-256 和标签词表的 Git 内容哈希；支持断点分块重试。来源、修订及校验信息保存在 `models/wd-tagger/manifest.json`。模型是 Apache-2.0，详见[发布者模型卡](https://huggingface.co/SmilingWolf/wd-swinv2-tagger-v3)。
+
+在 `deploy/.env` 加入 `INSTALL_AI=true` 后重新构建：
+
+```sh
+python scripts/compose.py up -d --build app
+```
+
+本地模型推理不上传图片或结果。CPU 默认可以运行；GPU 运行时、设备映射和显存需要按实际机器配置。模型只识别其词表覆盖的角色，未知角色不应强行命名。内容分级是建议，不能保证零误判。下方的联网查证是独立、手动触发的功能。
+
+### Intel 核显与 CPU 兜底
+
+`LIBRARY_AI_PROVIDER` 支持 `auto`、`intel`、`cpu` 和 `cuda`。`auto` 优先尝试已安装的 CUDA，其次 Intel GPU，最后 CPU；`intel` 只尝试 Intel GPU 再回退 CPU；`cpu` 强制 CPU；`cuda` 保留严格模式，不可用时报错。Intel 设备初始化、模型编译、推理错误、超时或驱动进程退出都会回退 CPU，并继续当前图片。模型本身损坏或 CPU 也失败时仍会明确报错。
+
+AI 页面显示实际设备、实际执行引擎和回退原因；首次成功推理前不会宣称 GPU 已工作。Intel 运行时在独立子进程中运行，避免原生驱动崩溃终止 Web 服务。Intel 模式通过设备名称排除其他厂商 GPU。
+
+Windows 原生开发预览可用独立环境，避免不同 ONNX Runtime 包冲突：
+
+```powershell
+./scripts/dev.ps1 -Install -Intel
+```
+
+此命令使用 `.venv-intel`，安装 `requirements-ai-intel.txt`，不修改原 `.venv`。Windows 还需可用的 Intel 显卡及其驱动。后续运行使用 `./scripts/dev.ps1 -Intel`。原生开发仍按原有 SQLite 预览配置启动；生产数据库应显式配置为 MySQL。
+
+Linux amd64 电脑／NAS 的可选 Intel 镜像使用 OpenVINO，与默认 CPU 镜像分开。镜像安装固定版本、逐包 SHA-256 校验的 Intel Compute Runtime 25.35.35096.9、IGC 2.18.5 和 GMM 22.8.1。GPU 范围以 [Intel 官方版本支持表](https://github.com/intel/compute-runtime/releases/tag/25.35.35096.9) 为准；Gen8／Gen9／Gen11 等旧平台需要 legacy 驱动，本镜像未集成，建议使用 CPU 模式。先确认宿主机存在受支持的 Intel render 设备、内核驱动正常，读取其组 ID：
+
+```sh
+stat -c '%g' /dev/dri/renderD128
+# 把上方数字写入 deploy/.env 的 LIBRARY_RENDER_GID，然后启动：
+python scripts/compose.py --intel up -d --build
+```
+
+覆盖配置只传入 render 设备和对应组权限，不使用特权容器。设备路径可通过 `LIBRARY_INTEL_DEVICE` 调整。没有该设备的电脑、ARM NAS 或 Windows Docker Desktop 使用默认 `deploy/compose.yaml` 的 CPU 模式；不要套用 Linux 设备映射。容器有设备但推理不可用时由应用回退 CPU。
+
+运行时入口分别为 `requirements-ai.txt`（CPU）和 `requirements-ai-intel.txt`（Intel，固定 ORT 1.24.1／OpenVINO 2025.4.1），应选择其一，不能在同一环境混装 `onnxruntime`、`onnxruntime-gpu` 和 `onnxruntime-openvino`。支持的显卡取决于驱动及模型算子，参见 [OpenVINO EP 官方说明](https://onnxruntime.ai/docs/execution-providers/OpenVINO-ExecutionProvider.html)。
+
+### 联网查证漫画人物
+
+AI 页的「联网查证角色」独立于本地模型是否可用。文字搜索仅把确认后的角色名或漫画名发给 [AniList](https://docs.anilist.co/)，返回名字、别名、作品和资料来源。作品详情与 AI 结果中的角色候选可带入搜索词；用户仍需点击搜索。中文没有匹配时可尝试日文、英文或罗马字。
+
+「以图搜索」可选择一张书库图片或上传截图。每次发送都需确认接收方是 SauceNAO；不会自动上传整本漫画。服务端限制原图 8 MiB、3600 万像素，缩至最长边 1024 像素、去除元数据后发送，不更改原文件。可在图搜设置加密保存自己的 [SauceNAO API Key](https://saucenao.com/user.php?page=search-api)，页面不回显密钥；未设置时尝试匿名查询，受对方额度及访问限制。图搜失败会显示错误，不伪装成没有匹配。有效密钥下的真实图片匹配仍需验证。
+
+图搜提供相似来源，不保证直接给出人物姓名；有角色名或作品名时可继续文字查证。相似度不是人物身份置信度。外部候选不会自动写入书库，人工确认只追加 `角色:` 标签，保留其他人工、来源及 AI 标签。联网请求遵循书库内置／外部代理设置；已启用代理不可用时不会绕过代理直连。
+
+### Pixiv 小说、多 P 与上下集
+
+来源页的 Pixiv 导入支持插画／漫画、小说和系列。单篇小说可粘贴 `https://www.pixiv.net/novel/show.php?id=小说ID`，或选择小说后填写数字 ID；接口也接受 `novel:小说ID`。请求下载时，详情与正文在同一任务获取；小说封面单独保存，不计为正文页。
+
+有可追溯 Pixiv 来源的小说自动补全缺失封面。详情 worker 每 60 秒检查一次，每轮通过游标扫描最多 200 条记录，最多保留 20 个待执行或执行中的自动封面任务；失败或平台没有返回封面时，间隔 24 小时再试。任务遵守采集总暂停、详情队列暂停、账号分工与请求限速。补封面保留已下载正文、人工资料及阅读进度，不自动重新下载正文；无来源的本地小说不会按标题猜测封面。
+
+小说保留原始 UTF-8 TXT，阅读器根据 `[chapter:标题]` 和 `[newpage]` 生成目录，记录章节与章节内位置。这两种标记遵循 [Pixiv 官方小说格式说明](https://www.pixiv.help/hc/en-us/articles/235584168-What-are-the-special-tags-I-can-use-in-a-novel-s-body-text)。正文中的 HTML 不执行；插图引用和其他特殊标记暂按原文保留，不会自动抓取内嵌插图。纯文本不送入图片 AI 模型。
+
+多 P 图片按 Pixiv 返回的页序保存，检查原图数量与远端页数一致；缺页或中途失败不会把半部作品标成已离线。详情区分远端页数和本地正文文件数，阅读器提供 P 页目录。
+
+官方小说系列链接为 `/novel/series/系列ID`，漫画系列为 `/user/作者ID/series/系列ID`。导入系列只获取目录、基本资料并为封面排队，每篇正文需自行下载。目录保持平台顺序，最多获取 1000 篇／50 页；达到限制时显示未完整，不宣称全系列完成。系列中的作品仍各有独立的文件、标签和阅读进度。
+
+不同链接的上篇、下篇可在作品详情的「系列与上下集」手动关联：搜索已入库作品，填写集名，调整顺序并保存。手动系列与官方系列分别保存，不按标题自动猜测关联。系列目录可切换前后篇；未下载成员打开详情后再下载。
+
+Pixiv 系列中的不可见占位作品会被跳过，目录标记为不完整；不会替它生成标题或发起正文下载。普通可见作品缺少必要字段时仍报告接口数据异常。
+
+Pixiv 作者、标签和搜索订阅新增「插画／漫画」「小说」「全部」范围。升级后的旧订阅保持图像范围及原自动下载设置；需要小说时在订阅页面主动修改。订阅仍只检查各内容范围的最新一页，尚不自动回填作者全部历史作品。
+
+## 本地开发预览（显式 SQLite 模式）
+
+Windows PowerShell：
+
+```powershell
+./scripts/dev.ps1 -Install
+```
+
+Linux（macOS 请使用 Docker）：
+
+```sh
+sh scripts/dev.sh --install
+```
+
+打开 <http://127.0.0.1:8000>。未设置 `LIBRARY_ADMIN_PASSWORD` 时，本地开发密码为 `local-library`；开发脚本只监听回环地址。数据库在 `.runtime/library.db`，书库在 `data/`。生产环境会拒绝 SQLite、默认密码和默认会话密钥。
+
+本地开发启用 AI：
+
+```sh
+python -m pip install -r server/requirements-ai.txt
+python scripts/download_model.py
+```
+
+请在项目虚拟环境执行 pip。前后端分开开发时，后端运行在 8000，前端 `npm run dev`；根据实际前端地址设置 `LIBRARY_ALLOWED_ORIGINS`，例如 `http://127.0.0.1:5173`。
+
+## Flutter 手机应用与扫码绑定
+
+`app/` 是独立 Flutter 工程，包含 Android 和 iOS 平台配置。先启动书库服务器，在 Web 设置的手机绑定区域填写手机能访问的服务器根地址，再生成二维码。手机扫码后兑换设备凭据，无需输入或保存管理员密码。局域网可用 `http://电脑或NAS的局域网IP:端口`，公网须用 HTTPS；手机上的 `localhost` 指向手机自身。
+
+Android 支持 7.0 及以上；仓库提供源码，APK 与签名密钥不纳入 Git。按 [App 构建说明](../app/README.md#构建)生成安装包，安装后点击「扫码绑定服务器」。保留同一发布签名才能覆盖升级。
+
+二维码有效期 5 分钟，只可兑换一次；重新生成会使旧码失效。设备凭据有效期 90 天，可在 Web 设备列表撤销，也可在手机解绑。手机授权限定为查看书库、阅读文件、保存进度和请求下载正文，管理账号、代理、数据库导出及生成二维码仍需网页登录。
+
+开发命令在 Flutter 工程内执行：
+
+```sh
+cd app
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+Android 构建使用 `flutter build apk --release`；iOS 构建需要 macOS、Xcode 和签名配置。手机需要能够连接书库服务器，当前尚未实现整书下载到手机后的断网阅读。Flutter 的具体编译与设备验证状态见 [验证范围](VALIDATION.md)。
+
+### 标签、同作者与 AI 汉化
+
+App 的标签按钮支持独立搜索，作品详情的标签可跳转到相关作品。「查看同作者作品」按当前平台和记录的作者名筛选。标题与标签的中文译名单独保存，原文和中文均可搜索；标签跳转始终使用原始标签 ID。
+
+网页「设置 → 标题与标签 AI 汉化」可选择本地 Ollama 或兼容 OpenAI 的接口，填写服务地址、模型标识及必要密钥，保存启用后测试。默认关闭，不自动安装或开通模型。Docker 连接宿主电脑可使用 `http://host.docker.internal:11434`，模型服务需允许容器连接；其他电脑或 NAS 填对应地址。兼容接口可填写以 `/v1` 结尾的地址，密钥加密保存，切换服务地址时清除旧密钥。
+
+App 详情经确认后将该作品的标题和标签加入后台汉化任务；网页可每批提交最多 50 部未翻译作品。译名保存在 MySQL，多个设备共享；不会上传漫画图片或正文。复用已有标签译名，重复提交复用任务；失败不覆盖原文，修改原题后旧译名失效。实际翻译质量及内容支持取决于所选模型，远程服务可能计费。
+
+接口格式参考 [Ollama Chat](https://docs.ollama.com/api/chat)、[Ollama JSON 输出](https://docs.ollama.com/capabilities/structured-outputs)和 [Chat Completions](https://developers.openai.com/api/reference/resources/chat)。
+
+### Pixiv 作者主页与收藏
+
+Web 导航和 App 书库右上角均提供「作者与收藏」。支持搜索已关注作者、打开本人主页／收藏，或输入数字作者 ID、`https://www.pixiv.net/users/作者ID`、作品分类页和收藏链接。作品详情提供作者主页入口；新获取作品会保存来源作者 ID，旧作品只在关注列表唯一匹配时关联，否则需要手动选择。
+
+作者作品分为插画、漫画、小说，收藏也分为三类。支持公开收藏，以及当前已登录账号本人的私密收藏。本人身份根据 Pixiv 授权响应确认，不信任手填 user_id；不读取其他账号的私密收藏。多个账号的目录缓存分别保存。
+
+作者资料与目录读取使用后台采集队列，遵循暂停和随机间隔。目录每批读取，缺失封面另行排队，正文需自行下载。插画／漫画收藏共用 Pixiv 图像收藏接口，按实际作品类型筛选；空批次可能仍有下一页。每次点击最多推进三个远端原始页，整个扫描最多 5000 页，界面区分已缓存数量和完整状态。
+
+刷新时保留旧目录，只有完整扫描且没有不可访问条目时才移除失效的目录关联，不删除本地作品、正文和进度。账户删除会移除对应目录缓存，本地作品继续保留。小说原始正文、多 P 与系列阅读共用现有流程。接口实现参考 [PixivPy SDK](https://github.com/upbit/pixivpy/blob/master/pixivpy3/aapi.py)。
+
+## 账号与平台
+
+在 Web「内容来源」页面添加账号，然后按作品链接或远端 ID 导入。凭据仅在保存时输入，不通过查询接口回显；服务器使用 `LIBRARY_SECRET_KEY` 加密。该密钥更换后旧凭据无法解密，需重新录入。
+
+- 哔咔、JM、E-Hentai 提供账号密码表单，平台确认登录成功后只加密保存 token/cookie，不保存登录密码。E-Hentai 使用论坛账号；JM 使用适配器固定支持域名的账号。
+- Pixiv 提供官方网页 PKCE 授权入口。当前需在官方授权页的开发者工具 Network 中开启 Preserve log，登录后尽快复制回调链接或 `code` 回书库完成授权；原生 `pixiv://` 回调不能自动返回本站，手机浏览器操作受限。服务端保存 refresh token。普通作品 ID 对应插画/漫画，小说使用小说链接。
+- 遇验证码、双重验证或平台风控时，页面显示实际错误，不把保存凭据当作登录成功。高级 JSON 会话导入仍保留，但标为“凭据未验证”；“已登录”仅表示保存时平台确认成功，不保证会话永不过期。
+- 平台作者关注与书库本地作者/标签订阅分别处理。定时订阅默认保存基本信息和封面，正文自动下载需单独启用。
+- 真实账号的权限、限流和接口变化会影响可用性；首次部署应先用少量作品验证。
+
+### 封面优先与随机调速
+
+目录同步先保存基本信息和封面，随即显示在对应平台书库。Pixiv 请求下载时合并获取详情和正文，其他平台另建正文任务。只获取封面的作品不计作已离线保存，也不能用于阅读、导出或逐页 AI 分析；作品详情可手动下载正文。有 Pixiv 来源的小说自动补全缺失封面，其他缺封面的远端作品可在任务页点击「补全封面」，不会因此开启正文自动下载。
+
+任务页「平台采集队列」提供「启用请求限速」开关，默认开启。关闭后跳过本地随机等待，保留最短、最长间隔配置，重新开启时继续使用；切换开关不会恢复已暂停的队列。平台返回的 429／Retry-After 等待始终保留。
+
+「并发任务数」支持 **1–8**，默认 1，保存后无需重启。调高后可以领取更多任务，调低后等待正在执行的任务完成再按新上限领取，不中断下载。页面逐项显示正在运行的任务及进度。AI 和汉化共用一个独立执行名额，不占用采集并发数。
+
+开启限速时，默认在 **2–5 秒**之间随机取值，允许范围为 0–60 秒，两个值相同时使用固定间隔。所有并发任务共用同一组请求间隔和平台退避；关闭限速后仍遵守并发上限和平台退避。采集优先获取封面，同时定期处理正文以免长期等待。并发以作品／任务为单位，不打乱单本书页顺序。设置和等待时间保存在 MySQL 中，电脑和 NAS 使用同样的流程，登录、本地 AI 和节点测速不受采集间隔影响。
+
+暂停会在当前请求结束后、下一次请求或保存检查点生效；已保存的封面保留。当前正文完成后才原子入库，暂停、取消或失败时尚未保存的正文可能需要整本重取，并非逐页断点续传。封面失败不会伪装为已保存，正文也不会因单张预览图失败而被自动跳过。
+
+### Clash / Mihomo 代理与节点
+
+在 Web「书库设置 → 内置代理」中添加订阅、选择节点并启用。Mihomo 随应用启动，电脑和 NAS 无需另开 Clash；Docker 镜像构建时安装内核，原生开发的 `-Install` / `--install` 一并安装。
+
+支持 Clash/Mihomo YAML（`proxies`）、URI 列表及其 Base64 订阅；不调用第三方转换网站。链接须为公网 HTTPS、443 端口。默认直接下载订阅，也可选择经当前代理更新。最多 10 个订阅、合计 2000 个节点；每份响应限 2 MiB，自动更新周期为 1–168 小时。不支持的格式或节点参数会报错，更新失败保留原节点。
+
+系统 DNS 返回已知 fake-IP 时，会通过固定地址的 AliDNS／Cloudflare HTTPS DNS 核验公网地址，再连接核验地址并验证原域名的 TLS 证书。DNS 服务只接收域名，不接收订阅路径或 token；真实内网地址仍会被拒绝。
+
+导入会预选首个节点，需点击启用才接管平台连接。节点测速会通过该节点访问固定探测站；平台测试只验证服务器响应，不验证账号权限。删除当前节点所在订阅、更新后当前节点消失或内核停止时，已启用的连接会失败，不自动切换其他节点或直连。
+
+节点列表的「一键测速」在后台测试全部节点，最多六个同时进行；显示完成进度、每个节点的延迟及失败状态。测试不会自动开启代理或切换出口。离开页面后可返回查看，重复点击复用正在运行的批次；完成记录短期保留，服务重启会清除进度，已保存的节点延迟保留。它测量连接延迟（ms），不测下载带宽；节点配置更新或删除后会忽略旧结果。
+
+订阅链接和节点凭据加密保存到 MySQL，页面不回显完整链接。内核运行文件包含节点凭据，使用受限权限的本地目录；Docker 使用独立 `proxy_state` volume，不存入 NAS 媒体共享。控制端口和代理端口仅绑定回环，不公开给局域网，不需要 TUN 或特权容器。内核异常退出会有限重启，页面可查看状态和手动重启。
+
+当前固定 [Mihomo v1.19.32](https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.32)，安装器验证官方发布包 SHA-256，支持 Windows amd64、Linux amd64/arm64。源码及 GPL-3.0 信息见[上游版本](https://github.com/MetaCubeX/mihomo/tree/v1.19.32)。应用启动不会联网下载可执行文件；首次构建/安装需访问官方发布源。
+
+平台登录、下载与关注同步共用当前出口。配置改变影响新连接，不修改系统代理。MySQL、NAS、本地 AI 和书库页面访问不经过代理。Pixiv 官方授权页仍使用浏览器自身网络，书库代理负责服务端授权码交换及后续请求。
+
+「高级：外部代理」保留已有 Clash 的连接方式，可配置代理地址和控制器；内置代理启用时优先。外部控制器切换会影响共用它的其他客户端，遵循其已有规则。Docker 访问宿主机服务可使用 `host.docker.internal`，实际端口及监听范围需与外部实例匹配。
+
+## 备份与恢复
+
+### 页面导出数据库
+
+在「书库设置 → 数据库备份」点击「导出数据库」，下载 `qiye-database-时间.sql`。电脑和 NAS 的 MySQL 部署均可使用，不需要另装 `mysqldump`。文件包含当前书库应用的表结构、迁移版本和数据，包括作品资料、标签、阅读进度、任务、订阅及加密保存的账号和代理配置。
+
+SQL **不包含书籍原文件、封面、模型或 `deploy/.env` 加密密钥**；恢复账号与代理仍需原 `LIBRARY_SECRET_KEY`。媒体请使用下方完整备份方式或另行备份存储目录。当前页面导出只支持 MySQL，SQLite 开发预览不提供此功能。
+
+导出使用 InnoDB 一致性快照，不暂停正常采集；升级数据库结构时不要同时导出。一次只允许一个导出，SQL 文件上限 1 GiB、生成时间上限约 10 分钟，超限或失败不会提供不完整文件；大型数据库可使用独立数据库备份工具。临时 SQL 在下载结束或中断后清理。
+
+仅将 SQL 导入**新的空 MySQL 数据库**；文件不包含删除旧表、建库或切换数据库命令。先创建空库，再使用 MySQL 客户端指定该库导入文件，恢复媒体与原加密密钥，最后启动应用并核对作品数量及文件读取。不要将导出文件直接导入正在使用的书库。
+
+### 完整备份
+
+```sh
+python scripts/backup.py --output backups/library-backup.zip
+python scripts/backup.py --verify backups/library-backup.zip
+```
+
+备份包含 MySQL SQL 导出、五个分库与旧目录的原始内容及 SHA-256 清单，不包括可重建缩略图和可重新下载的模型。订阅配置随数据库备份，内核运行文件可由数据库重建。脚本不覆盖已有备份。`deploy/.env` 尤其是加密密钥应单独保管，不提交到 Git。
+
+恢复到一个**新的空数据库和新的存储目录**：先验证备份，解压出 `storage/` 和 `database.sql`，将 Compose 指向恢复后的存储目录，再把 SQL 导入空的 `library` 数据库，最后启动应用。SQL 不带 DROP TABLE；不要对已有书库直接导入。恢复密钥后才能读取原账号凭据。验证恢复后的作品数量及抽样原文件，避免把“备份生成成功”等同“恢复成功”。
+
+## 验证
+
+```sh
+python -m pytest -c server/pytest.ini server/tests -q
+python -m pytest scripts/tests -q
+cd web
+npm run build
+```
+
+容器测试使用独立实例，不在运行中的应用容器内执行：
+
+```sh
+docker run --rm --network none --read-only --tmpfs /tmp qiye-library-app python -m pytest /app/server/tests -q -p no:cacheprovider
+```
+
+测试入口强制临时 SQLite，并在驱动连接前拒绝 MySQL 和测试目录外的 SQLite。开发启动脚本会先执行版本迁移；识别旧版未记录版本的开发库时，先备份再升级，不重建用户表。
+
+对运行中的开发实例执行端到端检查：
+
+```sh
+python scripts/smoke.py --ai
+```
+
+脚本验证登录、归档页序、原文件、缩略图、标签、阅读进度、导出、真实 ONNX 任务和人工修订保留，结束后移除测试条目。测试文件不会伪装成用户已有书籍。其他实例使用 `--url` 和 `LIBRARY_SMOKE_PASSWORD` 环境变量。
+
+项目结构和当前边界见 [架构说明](ARCHITECTURE.md)、[验证范围](VALIDATION.md) 与 [后续开发清单](ROADMAP.md)。
+
+
+## 人物作品墙、独立队列与账号分工
+
+Web「人物作品墙」及 App 侧边栏展示角色关联作品，支持已下载／平台筛选；联网查找候选后可保存人物介绍、别名和原作。已保存资料从本机服务器读取，不自动重新联网查询。
+
+Web「任务」分别管理下载、详情、作者与订阅检查、AI 识别、AI 汉化和其他队列，各自设置并发 1–8 与暂停。采集总暂停同时控制前三个队列；请求限速和平台退避仍共享。队列名称／分类可查看该队列最近任务。
+
+Web「账号管理」为 Pixiv 账号多选下载、解析详情、检查作者等功能，并单独设置账号并发 1–8（默认 2）。同一账号跨功能共用额度，任务同时遵守账号及队列上限；账号数不设配额。未选详情／检查账号时主账号负责；关注与私密收藏始终使用主账号。失败不自动换号，明确重试才重新分配。
+
+Android 安装包按 [App 构建说明](../app/README.md#构建)生成，再通过服务器的客户端更新页面发布。已安装且支持在线更新的 App 可在「服务器」中检查更新。Pixiv 作者订阅默认检查插画／漫画／小说三类；正文自动下载按订阅设置执行。
+
+
+## 后台任务进程与 CPU
+
+下载、详情、检查、AI、汉化等任务默认由六个独立进程执行，CPU 足够时与 Web 分配到不同的逻辑 CPU。任务页可查看进程和实际绑定。队列与账号并发限制继续生效；少核 NAS 自动共用部分 CPU。部署配置及边界见 [队列进程与 CPU 分配](WORKERS.md)。

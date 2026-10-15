@@ -1,0 +1,21 @@
+name: qiye_library
+description: 栖页独立阅读客户端
+publish_to: none
+version: 0.6.2+11
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+dependencies:
+  crypto: ^3.0.6
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  http: ^1.4.0
+  flutter_secure_storage: ^10.0.0
+  mobile_scanner: ^7.4.2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true

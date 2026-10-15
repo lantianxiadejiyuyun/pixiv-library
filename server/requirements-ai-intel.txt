@@ -1,0 +1,6 @@
+# Install INSTEAD OF requirements-ai.txt in a separate environment/image.
+# onnxruntime / onnxruntime-gpu / onnxruntime-openvino share one Python namespace.
+# Official compatibility pair: ORT 1.24.1 / OpenVINO 2025.4.1.
+onnxruntime-openvino==1.24.1
+openvino==2025.4.1
+numpy>=1.26,<2.4

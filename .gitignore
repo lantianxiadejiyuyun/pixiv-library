@@ -1,0 +1,39 @@
+# Keep root .gitignore and config/git/ignore identical.
+# The root copy protects fresh clones before configure_git.py runs.
+.venv/
+.venv-intel/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+.runtime/
+data/
+models/
+imports/
+backups/
+web/node_modules/
+web/dist/
+# Flutter also maintains platform-specific ignores in app/.gitignore.
+app/.dart_tool/
+app/build/
+*.log
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sql
+*.sql.gz
+*.dump
+dist/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+app/android/key.properties
+app/android/local.properties

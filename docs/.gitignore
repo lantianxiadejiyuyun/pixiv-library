@@ -1,0 +1,10 @@
+# Private deployment notes stay local. Publish the sanitized VALIDATION.md instead.
+/STATUS.md
+# Screenshots may contain real accounts, proxy providers, or library contents.
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+# These native Flutter previews are generated from synthetic fixtures.
+!app-*.png

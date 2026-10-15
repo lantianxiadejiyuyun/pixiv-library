@@ -1,0 +1,4 @@
+# Keep this local safeguard even before scripts/configure_git.py is run.
+.env
+.env.*
+!.env.example

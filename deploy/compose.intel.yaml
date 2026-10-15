@@ -1,0 +1,14 @@
+# Linux PC / NAS only. Set LIBRARY_RENDER_GID to `stat -c %g /dev/dri/renderD128`.
+# Without an accessible Intel render device use compose.yaml alone (CPU).
+services:
+  app:
+    build:
+      args:
+        INSTALL_AI: "true"
+        AI_RUNTIME: intel
+    environment:
+      LIBRARY_AI_PROVIDER: intel
+    devices:
+      - "${LIBRARY_INTEL_DEVICE:-/dev/dri/renderD128}:/dev/dri/renderD128"
+    group_add:
+      - "${LIBRARY_RENDER_GID:?Set LIBRARY_RENDER_GID to the render device numeric group ID}"

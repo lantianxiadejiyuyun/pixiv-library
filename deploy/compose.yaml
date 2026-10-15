@@ -1,0 +1,70 @@
+name: qiye-library
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: library
+      MYSQL_USER: library
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Run python scripts/bootstrap_env.py first}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysql --protocol=TCP -h 127.0.0.1 -u root -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  app:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      args:
+        INSTALL_AI: ${INSTALL_AI:-false}
+        AI_RUNTIME: ${AI_RUNTIME:-cpu}
+    restart: unless-stopped
+    init: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${LIBRARY_PORT:-8800}:8000"
+    environment:
+      LIBRARY_ENV: production
+      LIBRARY_DATABASE_URL: mysql+pymysql://library:${MYSQL_PASSWORD}@db:3306/library?charset=utf8mb4
+      LIBRARY_STORAGE_ROOT: /library/data
+      LIBRARY_IMPORT_ROOT: /library/imports
+      LIBRARY_MODEL_DIR: /library/models
+      LIBRARY_MIHOMO_PATH: /usr/local/bin/mihomo
+      LIBRARY_MIHOMO_DIR: /library/proxy
+      LIBRARY_MIHOMO_PROXY_PORT: ${LIBRARY_MIHOMO_PROXY_PORT:-17890}
+      LIBRARY_MIHOMO_CONTROLLER_PORT: ${LIBRARY_MIHOMO_CONTROLLER_PORT:-19090}
+      LIBRARY_ADMIN_PASSWORD: ${LIBRARY_ADMIN_PASSWORD:?Set LIBRARY_ADMIN_PASSWORD}
+      LIBRARY_SECRET_KEY: ${LIBRARY_SECRET_KEY:?Set LIBRARY_SECRET_KEY}
+      LIBRARY_ALLOWED_ORIGINS: ${LIBRARY_ALLOWED_ORIGINS:-}
+      LIBRARY_FRONTEND_DIST: /app/web/dist
+      LIBRARY_STORAGE_REQUIRE_MARKER: "true"
+      LIBRARY_AI_PROVIDER: ${LIBRARY_AI_PROVIDER:-auto}
+      LIBRARY_WORKER_MODE: ${LIBRARY_WORKER_MODE:-process}
+      LIBRARY_CPU_AFFINITY: ${LIBRARY_CPU_AFFINITY:-auto}
+      LIBRARY_SECURE_COOKIE: ${LIBRARY_SECURE_COOKIE:-false}
+      LIBRARY_ANDROID_CERT_SHA256: ${LIBRARY_ANDROID_CERT_SHA256:-5a93e25be4ef0f0e68033ab47cc8a767e8844c518a2714eaf5b3d97c976188e2}
+    volumes:
+      - ${LIBRARY_DATA_PATH:-./data}:/library/data
+      - ${LIBRARY_IMPORT_PATH:-./imports}:/library/imports:ro
+      - ${LIBRARY_MODEL_PATH:-./models}:/library/models:ro
+      - proxy_state:/library/proxy
+    depends_on:
+      db:
+        condition: service_healthy
+    stop_grace_period: 25s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+volumes:
+  mysql_data:
+  proxy_state:
