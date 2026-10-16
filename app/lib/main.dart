@@ -5,6 +5,9 @@ import 'binding_screen.dart';
 import 'library_screen.dart';
 import 'session.dart';
 import 'app_update.dart';
+import 'image_cache_card.dart';
+import 'platform_endpoints_screen.dart';
+import 'admin_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,6 +85,13 @@ class _QiyeAppState extends State<QiyeApp> {
     if (_clearing) return false;
     _clearing = true;
     try {
+      try {
+        await _api?.purgeImageCache();
+      } catch (_) {
+        // A storage failure must not prevent revoking the local session.
+      }
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
       await widget.store.clear();
       if (!mounted) return false;
       _navigator.currentState?.popUntil((route) => route.isFirst);
@@ -287,10 +297,40 @@ class _ServerScreenState extends State<ServerScreen> {
             child: LinearProgressIndicator(),
           ),
         const SizedBox(height: 28),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.admin_panel_settings_outlined),
+            title: const Text('后台管理'),
+            subtitle: const Text('管理员登录，管理账号、队列和服务器'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => AdminScreen(server: widget.session.server),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.route_outlined),
+            title: const Text('内容平台 API'),
+            subtitle: const Text('切换平台接口地址'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PlatformEndpointsScreen(api: widget.api),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ImageCacheCard(api: widget.api),
+        const SizedBox(height: 16),
         AppUpdateCard(api: widget.api),
         const SizedBox(height: 8),
         const Text(
-          '当前通过网络读取服务器内容。下载正文会保存到服务器，手机断网阅读将在后续版本提供。',
+          '浏览过的图片会缓存到手机。下载正文仍保存到服务器，完整作品离线阅读将在后续版本提供。',
           textAlign: TextAlign.center,
         ),
       ],

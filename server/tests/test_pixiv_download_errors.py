@@ -61,7 +61,7 @@ def test_failed_download_identifies_actual_account_and_stage_without_fallback(cl
     assert jobs.run_once()
     result = client.get('/api/jobs/' + ident).json()
     assert result['status'] == 'failed'
-    assert ('详情账号「主账号」' if phase == 'metadata' else '下载账号「副账号」') in result['error']
+    assert ('作品详情与正文账号「主账号」' if phase == 'metadata' else '图片下载账号「副账号」') in result['error']
     assert '当前账号不可见' in result['error']
     assert all(token != 'main-test' or not download for token, download in calls)
     assert 'main-test' not in result['error'] and 'content-test' not in result['error']

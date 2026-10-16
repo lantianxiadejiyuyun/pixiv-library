@@ -95,21 +95,28 @@ class _GroupDialogState extends State<_GroupDialog> {
 Future<Map<String, dynamic>?> editFavorite(
   BuildContext context,
   LibraryApi api,
-  LibraryItem item,
-) => showModalBottomSheet<Map<String, dynamic>>(
+  LibraryItem item, {
+  ValueChanged<Map<String, dynamic>>? onSaved,
+}) => showModalBottomSheet<Map<String, dynamic>>(
   context: context,
   isScrollControlled: true,
   showDragHandle: true,
   builder: (_) => FractionallySizedBox(
     heightFactor: .85,
-    child: FavoriteEditor(api: api, item: item),
+    child: FavoriteEditor(api: api, item: item, onSaved: onSaved),
   ),
 );
 
 class FavoriteEditor extends StatefulWidget {
   final LibraryApi api;
   final LibraryItem item;
-  const FavoriteEditor({super.key, required this.api, required this.item});
+  final ValueChanged<Map<String, dynamic>>? onSaved;
+  const FavoriteEditor({
+    super.key,
+    required this.api,
+    required this.item,
+    this.onSaved,
+  });
   @override
   State<FavoriteEditor> createState() => _FavoriteEditorState();
 }
@@ -117,14 +124,12 @@ class FavoriteEditor extends StatefulWidget {
 class _FavoriteEditorState extends State<FavoriteEditor> {
   List<Map<String, dynamic>> _groups = [];
   late final Set<String> _selected;
-  late int _score;
   bool _loading = true, _busy = false;
   String? _message;
   @override
   void initState() {
     super.initState();
     _selected = widget.item.favoriteGroupIds.toSet();
-    _score = widget.item.userScore;
     _load();
   }
 
@@ -160,10 +165,11 @@ class _FavoriteEditorState extends State<FavoriteEditor> {
       final value = await widget.api.put('/items/${widget.item.id}/favorite', {
         'favorite': favorite,
         if (favorite) 'group_ids': _selected.toList(),
-        'score': _score,
       });
+      final result = Map<String, dynamic>.from(value as Map);
+      widget.onSaved?.call(result);
       if (mounted) {
-        Navigator.pop(context, Map<String, dynamic>.from(value as Map));
+        Navigator.pop(context, result);
       }
     } catch (e) {
       if (mounted) {
@@ -183,7 +189,7 @@ class _FavoriteEditorState extends State<FavoriteEditor> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text('收藏与评分', style: Theme.of(context).textTheme.titleLarge),
+          child: Text('收藏分组', style: Theme.of(context).textTheme.titleLarge),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
@@ -193,28 +199,7 @@ class _FavoriteEditorState extends State<FavoriteEditor> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              for (int i = 1; i <= 5; i++)
-                IconButton(
-                  tooltip: '$i 星',
-                  onPressed: _busy ? null : () => setState(() => _score = i),
-                  icon: Icon(
-                    i <= _score
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              TextButton(
-                onPressed: _busy ? null : () => setState(() => _score = 0),
-                child: const Text('清除评分'),
-              ),
-            ],
-          ),
-        ),
+        const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(

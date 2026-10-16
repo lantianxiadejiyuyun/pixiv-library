@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'app_image_cache.dart';
 import 'session.dart';
 
 class ApiFailure implements Exception {
@@ -17,27 +18,132 @@ class ApiFailure implements Exception {
 class LibraryApi {
   final Uri server;
   final String? _token;
+  String? _adminCookie;
   final http.Client _client;
+  final AppImageCache _imageCache;
+  final DateTime? expiresAt;
+  final DateTime Function() _clock;
+  late final String _cacheNamespace = AppImageCache.namespace(
+    server,
+    _token ?? _adminCookie,
+  );
   final void Function()? onUnauthorized;
   bool _notified = false;
+  bool _closed = false;
+  bool _cacheDisabled = false;
+  bool get isAdministrator => _adminCookie != null;
   LibraryApi({
     required this.server,
     String? token,
     http.Client? client,
+    AppImageCache? imageCache,
+    this.expiresAt,
+    DateTime Function()? clock,
     this.onUnauthorized,
   }) : _token = token,
-       _client = client ?? http.Client();
+       _client = client ?? http.Client(),
+       _imageCache = imageCache ?? AppImageCache.shared,
+       _clock = clock ?? DateTime.now;
   factory LibraryApi.forSession(
     DeviceSession session, {
     void Function()? onUnauthorized,
   }) => LibraryApi(
     server: session.server,
     token: session.token,
+    expiresAt: session.expiresAt,
     onUnauthorized: onUnauthorized,
   );
 
+  /// A separate in-memory administrator session. The reading token and secure
+  /// pairing store are never promoted or replaced by administrator credentials.
+  static Future<LibraryApi> administrator({
+    required Uri server,
+    required String password,
+    http.Client? client,
+    void Function()? onUnauthorized,
+  }) async {
+    final api = LibraryApi(
+      server: validateServer(server.toString()),
+      client: client,
+      onUnauthorized: onUnauthorized,
+    );
+    try {
+      final request = http.Request('POST', api.resolve('/auth/login'))
+        ..followRedirects = false
+        ..headers['Content-Type'] = 'application/json'
+        ..body = jsonEncode({'password': password});
+      final response = await api._client
+          .send(request)
+          .timeout(const Duration(seconds: 20));
+      await response.stream.drain<void>().timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) {
+        throw ApiFailure(
+          response.statusCode == 429 ? '登录尝试过多，请五分钟后重试' : '管理员密码错误或服务器不可用',
+          response.statusCode,
+        );
+      }
+      final cookie = RegExp(
+        r'(?:^|,\s*)qiye_session=([A-Za-z0-9_.=-]+)(?:;|$)',
+      ).firstMatch(response.headers['set-cookie'] ?? '')?.group(1);
+      if (cookie == null || cookie.length > 1024) {
+        throw const ApiFailure('服务器没有返回有效的管理员会话');
+      }
+      api._adminCookie = 'qiye_session=$cookie';
+      return api;
+    } catch (error) {
+      api.close();
+      if (error is ApiFailure) rethrow;
+      throw const ApiFailure('管理员登录失败，请检查网络后重试');
+    }
+  }
+
+  Map<String, String> _authorization() => {
+    if (_token != null) 'Authorization': 'Bearer $_token',
+    'Cookie': ?_adminCookie,
+  };
+
+  void _unauthorized() {
+    _cacheDisabled = true;
+    unawaited(clearImageCache().catchError((Object _) {}));
+    if ((_token != null || _adminCookie != null) && !_notified) {
+      _notified = true;
+      onUnauthorized?.call();
+    }
+  }
+
+  void _ensureActive() {
+    if (_closed) throw const ApiFailure('服务器连接已关闭');
+    if (expiresAt != null && !expiresAt!.isAfter(_clock())) {
+      _unauthorized();
+      throw const ApiFailure('设备授权已失效，请重新扫码绑定', 401);
+    }
+  }
+
+  /// Authentication for native media requests to an address checked by resolve.
+  /// Tokens stay in headers and never become part of a playable/shareable URL.
+  Map<String, String> mediaHeaders() {
+    _ensureActive();
+    return Map.unmodifiable(_authorization());
+  }
+
   Uri resolve(String path, [Map<String, String>? query]) {
     if (path.contains('\\') || path.contains('#') || path.startsWith('//')) {
+      throw const ApiFailure('资源地址无效');
+    }
+    try {
+      if (path
+          .split('/')
+          .map(Uri.decodeComponent)
+          .any(
+            (segment) =>
+                segment == '.' ||
+                segment == '..' ||
+                segment.contains('/') ||
+                segment.contains('\\'),
+          )) {
+        throw const ApiFailure('资源地址无效');
+      }
+    } on FormatException {
       throw const ApiFailure('资源地址无效');
     }
     final supplied = Uri.tryParse(path);
@@ -69,19 +175,20 @@ class LibraryApi {
     Map<String, String>? query,
     Map<String, dynamic>? body,
     int maxBytes = 20 * 1024 * 1024,
+    bool imageResponse = false,
+    Duration headerTimeout = const Duration(seconds: 20),
   }) async {
+    _ensureActive();
     final request = http.Request(method, resolve(path, query))
       ..followRedirects = false;
     request.headers['Accept'] = 'application/json';
-    if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
+    request.headers.addAll(_authorization());
     if (body != null) {
       request.headers['Content-Type'] = 'application/json';
       request.body = jsonEncode(body);
     }
     try {
-      final response = await _client
-          .send(request)
-          .timeout(const Duration(seconds: 20));
+      final response = await _client.send(request).timeout(headerTimeout);
       if (response.statusCode >= 300 && response.statusCode < 400) {
         await response.stream.listen((_) {}).cancel();
         throw const ApiFailure('服务器返回了重定向，请使用最终服务器地址重新绑定');
@@ -102,13 +209,13 @@ class LibraryApi {
       }
       final result = bytes.takeBytes();
       if (response.statusCode >= 400) {
-        if (response.statusCode == 401 && _token != null && !_notified) {
-          _notified = true;
-          onUnauthorized?.call();
+        if (response.statusCode == 401) _unauthorized();
+        if (response.statusCode == 403) {
+          unawaited(clearImageCache().catchError((Object _) {}));
         }
         final message = switch (response.statusCode) {
-          401 => '设备授权已失效，请重新扫码绑定',
-          403 => '设备没有此操作权限，请在网页管理',
+          401 => isAdministrator ? '管理员登录已过期，请重新登录' : '设备授权已失效，请重新扫码绑定',
+          403 => '没有此操作权限，请检查登录状态',
           404 => '内容不存在，可能已被删除',
           429 => '请求过于频繁，请稍后重试',
           >= 500 => '服务器暂时不可用，请稍后重试',
@@ -116,6 +223,9 @@ class LibraryApi {
         };
         // Error bodies may contain proxy diagnostics or credentials; never display them.
         throw ApiFailure(message, response.statusCode);
+      }
+      if (imageResponse && response.statusCode != 200) {
+        throw const ApiFailure('图片响应不完整，请重试');
       }
       return result;
     } on ApiFailure {
@@ -148,8 +258,132 @@ class LibraryApi {
   Future<dynamic> put(String path, [Map<String, dynamic>? body]) =>
       _json('PUT', path, body: body);
   Future<dynamic> delete(String path) => _json('DELETE', path);
-  Future<Uint8List> image(String path) =>
-      _request('GET', path, maxBytes: 64 * 1024 * 1024);
+  Future<dynamic> manage(
+    String method,
+    String path, {
+    Map<String, String>? query,
+    Map<String, dynamic>? body,
+  }) => _json(method, path, query: query, body: body);
+
+  Future<Uint8List> managementDownload(
+    String method,
+    String path, {
+    Map<String, String>? query,
+  }) => _request(
+    method,
+    path,
+    query: query,
+    maxBytes: 256 * 1024 * 1024,
+    headerTimeout: const Duration(minutes: 5),
+  );
+
+  Future<dynamic> managementUpload(
+    String method,
+    String path, {
+    Map<String, String>? query,
+    required List<({String field, String name, String path})> files,
+    Map<String, String> fields = const {},
+    bool raw = false,
+  }) async {
+    _ensureActive();
+    http.BaseRequest request;
+    if (raw) {
+      final file = File(files.single.path);
+      final streamed = http.StreamedRequest(method, resolve(path, query))
+        ..contentLength = await file.length()
+        ..headers['Content-Type'] = 'application/vnd.android.package-archive';
+      Future<void> feed() async {
+        try {
+          await streamed.sink.addStream(file.openRead());
+        } catch (error, stack) {
+          try {
+            streamed.sink.addError(error, stack);
+          } catch (_) {
+            /* Transport already closed. */
+          }
+        } finally {
+          try {
+            await streamed.sink.close();
+          } catch (_) {
+            /* Reported by send(). */
+          }
+        }
+      }
+
+      unawaited(feed());
+      request = streamed;
+    } else {
+      final multipart = http.MultipartRequest(method, resolve(path, query))
+        ..fields.addAll(fields);
+      for (final file in files) {
+        multipart.files.add(
+          await http.MultipartFile.fromPath(
+            file.field,
+            file.path,
+            filename: file.name,
+          ),
+        );
+      }
+      request = multipart;
+    }
+    request.followRedirects = false;
+    request.headers.addAll(_authorization());
+    try {
+      final response = await _client
+          .send(request)
+          .timeout(const Duration(minutes: 10));
+      final data = BytesBuilder(copy: false);
+      await for (final chunk in response.stream.timeout(
+        const Duration(minutes: 2),
+      )) {
+        if (data.length + chunk.length > 20 * 1024 * 1024) {
+          throw const ApiFailure('响应超过大小上限');
+        }
+        data.add(chunk);
+      }
+      if (response.statusCode == 401) _unauthorized();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiFailure('上传失败，请检查文件格式、权限、服务器空间后重试', response.statusCode);
+      }
+      return jsonDecode(utf8.decode(data.takeBytes()));
+    } on ApiFailure {
+      rethrow;
+    } catch (_) {
+      throw const ApiFailure('上传中断，请检查连接后重试');
+    }
+  }
+
+  Future<Uint8List> image(String path) async {
+    // Validate before looking in cache: a hit must never bypass origin/path rules.
+    final uri = resolve(path);
+    _ensureActive();
+    Future<Uint8List> load() =>
+        _request('GET', path, maxBytes: 64 * 1024 * 1024, imageResponse: true);
+    if (_cacheDisabled) return load();
+    return _imageCache.get(
+      namespace: _cacheNamespace,
+      uri: uri,
+      ttl: RegExp(r'^/api/assets/[^/]+/content$').hasMatch(uri.path)
+          ? const Duration(days: 7)
+          : const Duration(minutes: 15),
+      load: load,
+      mayStore: () =>
+          !_closed &&
+          !_cacheDisabled &&
+          (expiresAt == null || expiresAt!.isAfter(_clock())),
+    );
+  }
+
+  Future<ImageCacheStats> imageCacheStats() =>
+      _imageCache.stats(_cacheNamespace);
+  Future<void> clearImageCache() => _imageCache.clear(_cacheNamespace);
+  Future<void> purgeImageCache() {
+    _cacheDisabled = true;
+    return clearImageCache();
+  }
+
+  Future<void> evictImage(String path) =>
+      _imageCache.evict(_cacheNamespace, resolve(path));
   Future<void> downloadApk(
     String path,
     File file, {
@@ -178,10 +412,7 @@ class LibraryApi {
       if (response.statusCode != 200 ||
           (response.contentLength != null && response.contentLength != size)) {
         await response.stream.listen((_) {}).cancel();
-        if (response.statusCode == 401 && !_notified) {
-          _notified = true;
-          onUnauthorized?.call();
-        }
+        if (response.statusCode == 401) _unauthorized();
         throw ApiFailure(
           response.statusCode == 401 ? '设备授权已失效，请重新扫码绑定' : '安装包下载失败或大小不符',
           response.statusCode,
@@ -222,7 +453,12 @@ class LibraryApi {
     }
   }
 
-  void close() => _client.close();
+  void close() {
+    _adminCookie = null;
+    _closed = true;
+    _imageCache.release(_cacheNamespace);
+    _client.close();
+  }
 }
 
 /// One exchange per scan, even if the camera emits the same QR on many frames.

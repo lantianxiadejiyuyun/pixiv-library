@@ -25,6 +25,31 @@ class ApiImage extends StatefulWidget {
 class _ApiImageState extends State<ApiImage> {
   late Future<Uint8List> _bytes;
   bool _reportedReady = false;
+  void _retry({bool evict = false}) {
+    final api = widget.api;
+    final path = widget.path;
+    setState(() {
+      _reportedReady = false;
+      _bytes = (() async {
+        if (evict) await api.evictImage(path);
+        return api.image(path);
+      })();
+    });
+  }
+
+  Widget _retryButton({bool evict = false}) {
+    final retry = Center(
+      child: IconButton(
+        tooltip: '重新加载图片',
+        onPressed: () => _retry(evict: evict),
+        icon: const Icon(Icons.refresh_rounded),
+      ),
+    );
+    return widget.naturalHeight
+        ? AspectRatio(aspectRatio: 2 / 3, child: retry)
+        : retry;
+  }
+
   void _ready() {
     if (_reportedReady) return;
     _reportedReady = true;
@@ -50,21 +75,11 @@ class _ApiImageState extends State<ApiImage> {
 
   @override
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(
+    key: ObjectKey(_bytes),
     future: _bytes,
     builder: (context, snapshot) {
       if (snapshot.hasError) {
-        final retry = Center(
-          child: IconButton(
-            tooltip: '重新加载图片',
-            onPressed: () => setState(() {
-              _bytes = widget.api.image(widget.path);
-            }),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        );
-        return widget.naturalHeight
-            ? AspectRatio(aspectRatio: 2 / 3, child: retry)
-            : retry;
+        return _retryButton();
       }
       if (!snapshot.hasData) {
         const loading = Center(
@@ -100,12 +115,7 @@ class _ApiImageState extends State<ApiImage> {
                     MediaQuery.devicePixelRatioOf(context))
                 .ceil()
                 .clamp(480, 2048),
-        errorBuilder: (_, _, _) => widget.naturalHeight
-            ? const AspectRatio(
-                aspectRatio: 2 / 3,
-                child: Center(child: Icon(Icons.broken_image_outlined)),
-              )
-            : const Center(child: Icon(Icons.broken_image_outlined)),
+        errorBuilder: (_, _, _) => _retryButton(evict: true),
       );
     },
   );

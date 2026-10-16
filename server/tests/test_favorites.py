@@ -64,6 +64,66 @@ def test_regroup_remove_keeps_score_original_content_and_progress(client, collec
     assert detail['assets'] == one['assets']
 
 
+def test_score_without_favorite_and_clear_keeps_groups_content_and_progress(client, collection):
+    one, _, groups = collection
+    path = f"/api/items/{one['id']}"
+    client.put(path + '/progress', json={'page': 0}).raise_for_status()
+    response = client.put(path + '/score', json={'score': 4})
+    assert response.status_code == 200
+    assert response.json() == {'id': one['id'], 'user_score': 4}
+    detail = client.get(path).json()
+    assert not detail['is_favorite'] and detail['favorite_group_ids'] == []
+    assert client.get('/api/favorite-groups').json()['total_favorites'] == 0
+    assert client.get('/api/items', params={'favorite': True}).json()['total'] == 0
+    assert detail['user_score'] == 4 and detail['progress']['page'] == 0
+    assert detail['assets'] == one['assets']
+
+    ids = [group['id'] for group in groups[:2]]
+    assert mark(client, one, group_ids=ids).json()['user_score'] == 4
+    for value in (5, 0):
+        assert client.put(path + '/score', json={'score': value}).json()['user_score'] == value
+        detail = client.get(path).json()
+        assert detail['is_favorite'] and sorted(detail['favorite_group_ids']) == sorted(ids)
+        assert detail['assets'] == one['assets'] and detail['progress']['page'] == 0
+    client.put(path + '/score', json={'score': 3}).raise_for_status()
+    assert mark(client, one, favorite=False).json()['user_score'] == 3
+    assert client.get('/api/favorite-groups').json()['total_favorites'] == 0
+
+
+@pytest.mark.parametrize('value', [
+    {'score': -1}, {'score': 6}, {'score': True}, {'score': 2.5},
+    {'score': '4'}, {'score': None}, {}, {'score': 3, 'favorite': True},
+    {'score': 3, 'group_ids': []},
+])
+def test_invalid_score_cannot_change_personal_state(client, collection, value):
+    one, _, groups = collection
+    ids = [groups[0]['id']]
+    mark(client, one, group_ids=ids, score=2).raise_for_status()
+    path = f"/api/items/{one['id']}"
+    assert client.put(path + '/score', json=value).status_code == 422
+    detail = client.get(path).json()
+    assert detail['user_score'] == 2 and detail['is_favorite']
+    assert detail['favorite_group_ids'] == ids
+
+
+def test_score_endpoint_device_access_origin_revocation_and_missing_item(client, collection):
+    one, _, _ = collection
+    path = f"/api/items/{one['id']}/score"
+    assert client.put('/api/items/missing/score', json={'score': 1}).status_code == 404
+    device = bind(client)
+    headers = bearer(device)
+    client.cookies.clear()
+    assert client.put(path, json={'score': 4}).status_code == 401
+    assert client.put(path, headers=headers, json={'score': 4}).status_code == 200
+    assert not client.get(f"/api/items/{one['id']}", headers=headers).json()['is_favorite']
+    assert client.put(path, headers={**headers, 'Origin': 'https://evil.test'}, json={'score': 1}).status_code == 403
+    assert client.get(f"/api/items/{one['id']}", headers=headers).json()['user_score'] == 4
+    assert client.put(path + '/extra', headers=headers, json={'score': 1}).status_code == 403
+    assert client.post(path, headers=headers, json={'score': 1}).status_code == 403
+    client.post('/api/devices/disconnect', headers=headers).raise_for_status()
+    assert client.put(path, headers=headers, json={'score': 5}).status_code == 401
+
+
 @pytest.mark.parametrize('value', [{'score': 6}, {'score': -1}, {'score': True}, {'score': 2.5}, {'favorite': 'true'}, {'group_ids': ['missing']}, {'extra': 'no'}])
 def test_invalid_favorite_writes_leave_existing_state_unchanged(client, collection, value):
     one, _, groups = collection

@@ -14,11 +14,12 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .models import Asset, Item, ItemTag, Tag, new_id
 from .storage import resolve_asset_path, save_blob, validate_collection
+from .video_media import VIDEO_EXTENSIONS, video_mime
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 TEXT_EXTENSIONS = {".txt", ".md"}
 ARCHIVE_EXTENSIONS = {".zip", ".cbz"}
-SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | TEXT_EXTENSIONS | ARCHIVE_EXTENSIONS
+SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | TEXT_EXTENSIONS | VIDEO_EXTENSIONS | ARCHIVE_EXTENSIONS
 IMAGE_MIMES = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "GIF": "image/gif", "BMP": "image/bmp"}
 
 
@@ -66,7 +67,7 @@ def expand_files(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
                         if entry.is_dir():
                             continue
                         entry_suffix = Path(entry.filename).suffix.lower()
-                        if entry_suffix not in IMAGE_EXTENSIONS | TEXT_EXTENSIONS:
+                        if entry_suffix not in IMAGE_EXTENSIONS | TEXT_EXTENSIONS | VIDEO_EXTENSIONS:
                             continue
                         if entry.flag_bits & 1:
                             raise ValueError("不支持加密压缩包")
@@ -82,7 +83,7 @@ def expand_files(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
                         output.append((clean_filename(entry.filename), content))
             except (zipfile.BadZipFile, RuntimeError, NotImplementedError) as exc:
                 raise ValueError("无法读取 ZIP/CBZ 压缩包") from exc
-        elif suffix in IMAGE_EXTENSIONS | TEXT_EXTENSIONS:
+        elif suffix in IMAGE_EXTENSIONS | TEXT_EXTENSIONS | VIDEO_EXTENSIONS:
             total += len(data)
             if total > settings.max_import_bytes or len(output) >= settings.max_import_files:
                 raise ValueError("导入文件总量或数量超过限制")
@@ -90,13 +91,15 @@ def expand_files(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
         else:
             raise ValueError(f"不支持的文件格式：{suffix or '无扩展名'}")
     if not output:
-        raise ValueError("未找到支持的图片或 UTF-8 文本文件")
+        raise ValueError("未找到支持的图片、视频或 UTF-8 文本文件")
     return output
 
 
 def validate_content(name: str, data: bytes) -> tuple[bytes, str]:
     if not data:
         raise ValueError(f"文件为空：{name}")
+    if Path(name).suffix.lower() in VIDEO_EXTENSIONS:
+        return data, video_mime(name, data)
     if Path(name).suffix.lower() in TEXT_EXTENSIONS:
         try:
             text = data.decode("utf-8-sig")

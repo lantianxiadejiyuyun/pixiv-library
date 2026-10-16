@@ -8,16 +8,12 @@ import 'tag_browser_screen.dart';
 import 'author_screen.dart';
 import 'characters_screen.dart';
 import 'favorites_screen.dart';
+import 'score_editor.dart';
 import 'item_cover.dart';
+import 'source_labels.dart';
+import 'admin_screen.dart';
 
-const _sources = {
-  '': '全部书库',
-  'pixiv': 'Pixiv',
-  'ehentai': 'E-Hentai',
-  'picacg': '哔咔',
-  'jm': 'JM 天堂',
-  'local': '本地书库',
-};
+const _sources = librarySources;
 String _stateLabel(String state) => switch (state) {
   'ready' => '可阅读',
   'queued' => '等待服务器下载',
@@ -60,7 +56,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   LibraryTag? _tag;
   String? _error;
   int _page = 1, _total = 0, _request = 0;
-  bool _loading = true;
+  bool _loading = true, _refreshFailed = false;
   bool _downloaded = false;
   String? _favoriteGroup;
   bool _history = false;
@@ -113,7 +109,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     setState(() {
       _loading = true;
       _error = null;
-      if (!append && !tail) {
+      _refreshFailed = false;
+      if (reset && !append && !tail) {
         _items = [];
         _page = 1;
       }
@@ -159,6 +156,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (mounted && request == _request) {
         setState(() {
           _error = _message(e);
+          _refreshFailed = !append && !tail;
           _loading = false;
         });
       }
@@ -435,6 +433,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   _browseTags();
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.admin_panel_settings_outlined),
+                title: const Text('后台管理'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => AdminScreen(server: widget.api.server),
+                    ),
+                  );
+                },
+              ),
               if (widget.onSettings != null)
                 ListTile(
                   leading: const Icon(Icons.settings_outlined),
@@ -633,7 +643,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       ),
                     )
                   : RefreshIndicator(
-                      onRefresh: () => _load(reset: true),
+                      onRefresh: () => _load(),
                       child: LayoutBuilder(
                         builder: (context, box) {
                           final columns = box.maxWidth >= 1000
@@ -767,11 +777,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                           )
                                         : Center(
                                             child: TextButton(
-                                              onPressed: () =>
-                                                  _load(append: true),
+                                              onPressed: () => _load(
+                                                append: !_refreshFailed,
+                                              ),
                                               child: Text(
                                                 _error != null
-                                                    ? '加载失败，重试'
+                                                    ? (_refreshFailed
+                                                          ? '刷新失败，重试'
+                                                          : '加载失败，重试')
                                                     : '加载更多',
                                               ),
                                             ),
@@ -813,6 +826,7 @@ class _ItemDetailScreenState extends State<_ItemDetailScreen> {
   bool _translating = false;
   bool _visited = false, _coverBusy = false;
   int _coverAttempts = 0;
+  int _favoriteRevision = 0, _scoreRevision = 0;
   String? _translationError;
   @override
   void initState() {
@@ -831,13 +845,26 @@ class _ItemDetailScreenState extends State<_ItemDetailScreen> {
     if (_refreshing) return;
     _refreshing = true;
     _poll?.cancel();
+    final favoriteRevision = _favoriteRevision, scoreRevision = _scoreRevision;
     try {
       final data =
           await widget.api.get('/items/${widget.itemId}')
               as Map<String, dynamic>;
       if (!mounted) return;
+      var updated = LibraryItem.fromJson(data);
+      final current = _item;
+      // A background refresh may predate a completed preference write.
+      if (current != null && favoriteRevision != _favoriteRevision) {
+        updated = updated.withFavorite({
+          'is_favorite': current.isFavorite,
+          'favorite_group_ids': current.favoriteGroupIds,
+        });
+      }
+      if (current != null && scoreRevision != _scoreRevision) {
+        updated = updated.withScore(current.userScore);
+      }
       setState(() {
-        _item = LibraryItem.fromJson(data);
+        _item = updated;
         _contentError = data['content_error'] as String?;
         _error = null;
         _loading = false;
@@ -895,10 +922,33 @@ class _ItemDetailScreenState extends State<_ItemDetailScreen> {
   Future<void> _favorite() async {
     final item = _item;
     if (item == null) return;
-    final result = await editFavorite(context, widget.api, item);
-    if (!mounted || result == null) return;
-    setState(() => _item = _item!.withFavorite(result));
-    widget.onChanged?.call(_item!);
+    await editFavorite(
+      context,
+      widget.api,
+      item,
+      onSaved: (result) {
+        _favoriteRevision++;
+        final updated = (_item ?? item).withFavorite(result);
+        if (mounted) setState(() => _item = updated);
+        widget.onChanged?.call(updated);
+      },
+    );
+  }
+
+  Future<void> _score() async {
+    final item = _item;
+    if (item == null) return;
+    await editScore(
+      context,
+      widget.api,
+      item,
+      onSaved: (score) {
+        _scoreRevision++;
+        final updated = (_item ?? item).withScore(score);
+        if (mounted) setState(() => _item = updated);
+        widget.onChanged?.call(updated);
+      },
+    );
   }
 
   Future<void> _refreshCover() async {
@@ -1181,8 +1231,20 @@ class _ItemDetailScreenState extends State<_ItemDetailScreen> {
                           avatar: Icon(Icons.favorite, size: 16),
                           label: Text('已收藏'),
                         ),
-                      if (item.userScore > 0)
-                        Chip(label: Text('我的评分 ${item.userScore}/5')),
+                      ActionChip(
+                        avatar: Icon(
+                          item.userScore > 0
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          size: 18,
+                        ),
+                        label: Text(
+                          item.userScore > 0
+                              ? '我的评分 ${item.userScore}/5'
+                              : '评分',
+                        ),
+                        onPressed: _score,
+                      ),
                     ],
                   ),
                   if (_contentError?.isNotEmpty == true)

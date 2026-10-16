@@ -10,11 +10,23 @@ from .auth import require_admin_cookie
 from .database import get_db
 from .integrations.base import ConnectorError
 from .integrations.credentials import decrypt_credentials, encrypt_credentials
-from .models import AuthorFeed, Job, NetworkSetting, SourceAccount
+from .models import Job, NetworkSetting, SourceAccount
 
 KEY = "pixiv_account_roles"
 AccountID = Annotated[str, Field(min_length=1, max_length=36)]
 router = APIRouter(prefix="/sources/pixiv/account-roles", dependencies=[Depends(require_admin_cookie)])
+
+
+def is_novel_payload(payload):
+    """Accept canonical IDs and legacy direct links without making a request."""
+    from .integrations.pixiv import PixivConnector
+    value = payload.get("remote_id")
+    if not isinstance(value, str):
+        return False
+    try:
+        return PixivConnector({}).normalize_id(value).startswith("novel:")
+    except (ConnectorError, ValueError):
+        return False
 
 
 class RolesInput(BaseModel):
@@ -65,14 +77,13 @@ def resolve_account_id(db, requested=None, *, purpose="metadata", pinned=False):
         ident = requested if pinned else config["content_account_id"]
         if pinned and ident not in config["content_account_ids"]:
             raise ConnectorError("Pixiv 下载账号已退出账号池，请重试任务以重新分配；未改用主账号")
-        label = "副账号（正文下载）"
+        label = "图片下载账号"
     elif purpose in ("details", "checks"):
-        pool = config["detail_account_ids" if purpose == "details" else "check_account_ids"] or [config["main_account_id"]]
-        ident = requested if pinned else pool[0]
-        # Main remains the identity for private directories and follows.
-        if ident not in pool and not (purpose == "checks" and ident == config["main_account_id"]):
+        pool = config["detail_account_ids" if purpose == "details" else "check_account_ids"]
+        ident = requested if pinned else pool[0] if pool else None
+        if pinned and ident not in pool:
             raise ConnectorError("Pixiv 账号功能已更改，请重试任务以重新分配")
-        label = "详情解析账号" if purpose == "details" else "作者检查账号"
+        label = "作品内容账号" if purpose == "details" else "作者资料账号"
     else:
         ident, label = config["main_account_id"], "主账号（检索资料）"
         if pinned and requested != ident:
@@ -103,25 +114,30 @@ def assignment_filter(state):
         return True
     config, busy, records = state
     full = [ident for ident, count in busy.items() if count >= config["account_limits"].get(ident, 2)]
+    pixiv = Job.payload["platform"].as_string() == "pixiv"
+    remote_id = func.trim(func.coalesce(Job.payload["remote_id"].as_string(), ""))
+    # Enqueueing stores canonical IDs. Also recognize old direct novel links.
+    novel = or_(remote_id.like("novel:%"), remote_id.like("https://%/novel/show.php?%"))
     conditions = []
     for field in ("download_account_id", "details_account_id", "check_account_id", "execution_account_id"):
         value = Job.payload[field].as_string()
-        conditions.append(or_(value.is_(None), value.not_in(full)))
+        available = or_(value.is_(None), value.not_in(full))
+        if config["enabled"] and field == "download_account_id":
+            # Old paused novels can still carry an image identity. Assignment
+            # releases it below; do not make them wait for an unused account.
+            available = or_(and_(pixiv, Job.kind.in_(("import", "import_content")), novel), available)
+        conditions.append(available)
     if config["enabled"]:
-        from .queue_control import lane_expression
-        pixiv_checks = or_(Job.kind.in_(("author_profile", "author_feed", "series_sync")),
-                           and_(Job.kind == "source_sync", Job.payload["platform"].as_string() == "pixiv"))
-        private = or_(and_(Job.kind == "source_sync", Job.payload["subscription_id"].as_string().is_(None)),
-                      and_(Job.kind == "author_profile", Job.payload["target"].as_string() == "me"),
-                      and_(Job.kind == "author_feed", select(AuthorFeed.id).where(
-                          AuthorFeed.id == Job.payload["feed_id"].as_string(), AuthorFeed.restrict == "private").exists()))
-        private = func.coalesce(private, False)
-        check_pool = config["check_account_ids"] or [config["main_account_id"]]
+        body = or_(Job.kind == "import_content", and_(Job.kind == "import", func.coalesce(Job.payload["download"].as_boolean(), True)))
+        own_profile = and_(Job.kind == "author_profile", func.lower(func.coalesce(Job.payload["target"].as_string(), "")) == "me")
+        discovery = or_(Job.kind.in_(("author_feed", "series_sync")), own_profile,
+                        and_(Job.kind == "source_sync", pixiv))
+        author_profile = and_(Job.kind == "author_profile", not_(own_profile))
         for field, pool, need in (
-            ("download_account_id", config["content_account_ids"], and_(lane_expression() == "download", Job.payload["platform"].as_string() == "pixiv")),
-            ("details_account_id", config["detail_account_ids"] or [config["main_account_id"]], and_(Job.kind == "import", Job.payload["platform"].as_string() == "pixiv")),
-            ("check_account_id", check_pool, and_(pixiv_checks, not_(private))),
-            ("check_account_id", [config["main_account_id"]], and_(pixiv_checks, private)),
+            ("download_account_id", config["content_account_ids"], and_(pixiv, body, not_(novel))),
+            ("details_account_id", config["detail_account_ids"], and_(pixiv, or_(Job.kind == "import", and_(Job.kind == "import_content", novel)))),
+            ("check_account_id", config["check_account_ids"], author_profile),
+            ("check_account_id", [config["main_account_id"]], discovery),
         ):
             if pool and all(ident in full for ident in pool):
                 conditions.append(or_(Job.payload[field].as_string().is_not(None), not_(func.coalesce(need, False))))
@@ -150,17 +166,14 @@ def assign_download_account(db, job, control, *, state=None):
     else:
         pools = {}
         if job.kind in ("import", "import_content"):
-            if job.kind == "import_content" or job.payload.get("download", True):
+            novel = is_novel_payload(job.payload)
+            if not novel and (job.kind == "import_content" or job.payload.get("download", True)):
                 pools["download_account_id"] = config["content_account_ids"]
-            if job.kind == "import":
-                pools["details_account_id"] = config["detail_account_ids"] or [config["main_account_id"]]
+            if job.kind == "import" or novel:
+                pools["details_account_id"] = config["detail_account_ids"]
         else:
-            private = job.kind == "source_sync" and not job.payload.get("subscription_id")
-            private = private or job.kind == "author_profile" and str(job.payload.get("target", "")).lower() == "me"
-            if job.kind == "author_feed":
-                feed = db.get(AuthorFeed, job.payload.get("feed_id"))
-                private = feed is None or feed.restrict == "private"
-            pools["check_account_id"] = [config["main_account_id"]] if private else config["check_account_ids"] or [config["main_account_id"]]
+            profile = job.kind == "author_profile" and str(job.payload.get("target", "")).lower() != "me"
+            pools["check_account_id"] = config["check_account_ids"] if profile else [config["main_account_id"]]
     fields = ("download_account_id", "details_account_id", "check_account_id", "execution_account_id")
     payload = dict(job.payload)
     for key in fields:

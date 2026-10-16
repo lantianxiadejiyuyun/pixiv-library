@@ -618,3 +618,5 @@ h1, h2, h3, h4 { text-wrap: pretty; }
 
 /* Keep all navigation entries and server settings reachable on short screens. */
 .sidebar{overflow-y:auto;overscroll-behavior:contain}.sidebar>*{flex-shrink:0}
+
+.source-logo.kemono,.collection-entry.kemono .collection-entry-symbol{background:#eee7fa;color:#72519a}.source-actions{flex-wrap:wrap;gap:8px}

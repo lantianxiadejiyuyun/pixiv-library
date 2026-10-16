@@ -18,6 +18,7 @@ Map<String, dynamic> book(int id) => {
 class PagedApi extends LibraryApi {
   final calls = <Map<String, String>>[];
   Completer<dynamic>? second;
+  Completer<dynamic>? refresh;
   bool failSecond = false;
   PagedApi() : super(server: Uri.parse('https://library.test'));
   @override
@@ -25,6 +26,7 @@ class PagedApi extends LibraryApi {
     calls.add({'path': path, ...?query});
     final page = int.parse(query?['page'] ?? '1');
     if (path == '/items') {
+      if (page == 1 && refresh != null) return refresh!.future;
       if (page == 2 && failSecond) throw const ApiFailure('失败');
       if (page == 2 && second != null) return second!.future;
       return {
@@ -163,6 +165,40 @@ void main() {
       24,
     );
   });
+  testWidgets(
+    'refresh retains loaded pages during a slow request and after failure',
+    (tester) async {
+      final api = PagedApi();
+      await tester.pumpWidget(MaterialApp(home: LibraryScreen(api: api)));
+      await tester.pumpAndSettle();
+      bottom(tester);
+      await tester.pumpAndSettle();
+      int itemCount() =>
+          (tester.widget<SliverGrid>(find.byType(SliverGrid)).delegate
+                  as SliverChildBuilderDelegate)
+              .childCount!;
+      expect(itemCount(), 48);
+      api.refresh = Completer<dynamic>();
+      final refresh = tester
+          .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+          .onRefresh();
+      await tester.pump();
+      expect(itemCount(), 48);
+      api.refresh!.completeError(const ApiFailure('连接超时'));
+      await refresh;
+      await tester.pumpAndSettle();
+      expect(itemCount(), 48);
+      bottom(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('刷新失败，重试'), findsOneWidget);
+      api.refresh = null;
+      await tester.tap(find.text('刷新失败，重试'));
+      await tester.pumpAndSettle();
+      expect(api.calls.last['page'], '1');
+      expect(itemCount(), 24);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('author directory and author feed append when scrolled down', (
     tester,
   ) async {

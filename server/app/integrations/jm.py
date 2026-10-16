@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlparse
 
-from .base import Connector, ConnectorError, RemoteWork, SafeHTTP, validate_url, fetch_preview_cover, pace_sdk_requests, metadata_page_count
+from .base import Connector, ConnectorError, RemoteWork, SafeHTTP, validate_url, fetch_preview_cover, pace_sdk_requests, metadata_page_count, _SDKCancellation
 
 
 class JMConnector(Connector):
@@ -35,22 +35,38 @@ class JMConnector(Connector):
             from PIL import Image
         except ImportError as exc:
             raise ConnectorError("请安装 server/requirements.txt 中的 jmcomic") from exc
-        # Fixed HTML metadata origin; no user-supplied domains, plugins or executable config.
+        # A single explicitly configured HTML origin; never SDK domain failover.
+        from app.endpoint_config import DEFAULTS, get_endpoint, assert_endpoint_request
         from app.network import requests_proxies
+        endpoint = get_endpoint("jm")
+        domain = urlparse(endpoint).hostname
         proxies = requests_proxies()
         option = JmOption.construct({"log": False, "client": {
-            "impl": "html", "domain": {"html": ["18comic.vip"]}, "retry_times": 1,
+            "impl": "html", "domain": {"html": [domain]}, "retry_times": 1,
             # libcurl honors NO_PROXY even with an explicit proxy. Clear it so an
             # operator's selected proxy cannot be bypassed by ambient settings.
             "postman": {"type": "curl_cffi", "meta_data": {"timeout": 40, "allow_redirects": False,
                 "proxies": proxies, "curl_options": {CurlOpt.NOPROXY: ""},
                 "cookies": {"AVS": self.credentials["AVS"]} if self.credentials.get("AVS") else {}}}}})
         client = option.new_jm_client()
+        if endpoint != DEFAULTS["jm"][1]:
+            original_get = client.postman.get
+            def guarded_get(url, **kwargs):
+                try:
+                    assert_endpoint_request(url, endpoint)
+                    kwargs["allow_redirects"] = False
+                    response = original_get(url, **kwargs)
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        raise ConnectorError("JM 接口返回重定向，已停止；请检查接口地址")
+                    return response
+                except ConnectorError as exc:
+                    raise _SDKCancellation(exc) from None
+            client.postman.get = guarded_get
         # Gate the real transport before the SDK inspects status codes. The
         # boundary restores cancellation outside its broad retry handler, so
         # every actual attempt is paced without retrying a pause/cancellation.
         pace_sdk_requests(client.postman, "get", cancellation_boundary=(client, "request_with_retry"))
-        validate_url("https://18comic.vip/", ("18comic.vip",), resolve=not bool(proxies["https"]))
+        validate_url(endpoint + "/", (domain,), resolve=not bool(proxies["https"]))
         album = client.get_album_detail(ident)
         work = RemoteWork(remote_id=ident, title=album.name,
             source_url=f"https://18comic.vip/album/{ident}",

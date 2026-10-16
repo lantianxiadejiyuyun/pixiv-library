@@ -86,12 +86,17 @@ class PicACGConnector(Connector):
         return match[1].lower()
 
     def _request(self, endpoint, *, method="GET", body=None, auth=True):
+        from app.endpoint_config import DEFAULTS, get_endpoint, guard_http_client
+        if not hasattr(self, "_api_endpoint"):
+            self._api_endpoint = get_endpoint("picacg")
         if auth:
             self._ensure_token()
         headers = signed_headers(endpoint, method, token=self._access_token if auth else "")
-        client = SafeHTTP(("picaapi.picacomic.com",), headers=headers)
+        client = SafeHTTP((urlparse(self._api_endpoint).hostname,), headers=headers)
         try:
-            response = json.loads(client.fetch(API_ROOT + endpoint, method=method, json=body, limit=8 * 1024 * 1024))
+            if self._api_endpoint != DEFAULTS["picacg"][1]:
+                guard_http_client(client, self._api_endpoint)
+            response = json.loads(client.fetch(self._api_endpoint.rstrip("/") + "/" + endpoint, method=method, json=body, limit=8 * 1024 * 1024))
         except (json.JSONDecodeError, UnicodeError) as exc:
             raise ConnectorError("哔咔返回了无法解析的响应，请检查平台网络") from exc
         finally:

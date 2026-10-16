@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'admin_screen.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'api.dart';
 import 'session.dart';
@@ -187,6 +188,17 @@ class _BindingScreenState extends State<BindingScreen> {
                   onPressed: _busy ? null : _manual,
                   icon: const Icon(Icons.content_paste_rounded),
                   label: const Text('粘贴绑定码'),
+                ),
+                TextButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const AdminScreen(),
+                          ),
+                        ),
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('管理员登录'),
                 ),
                 if (_busy) ...[
                   const SizedBox(height: 16),

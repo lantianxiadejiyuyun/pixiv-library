@@ -34,7 +34,7 @@ async function save() {
     apply(await api<Config>('/sources/pixiv/account-roles', {method: 'PUT', body: JSON.stringify({
       enabled: form.enabled, main_account_id: form.main_account_id || null, content_account_id: form.content_account_id || null,
     })}))
-    message.value = form.enabled ? '已启用：主账号检索资料，副账号下载正文。' : '已关闭账号分工，恢复原有账号选择。'
+    message.value = form.enabled ? '已启用账号分工，请在账号管理中配置各项功能。' : '已关闭账号分工，恢复原有账号选择。'
   } catch (e) { error.value = errorMessage(e) }
   finally { busy.value = false }
 }
@@ -50,11 +50,11 @@ onMounted(load)
     <h3><UsersRound :size="17" />主副账号分工</h3>
     <div v-if="loading" class="field-hint">读取账号分工…</div>
     <template v-if="state">
-      <div v-if="compact" class="roles-summary"><p class="field-hint">{{ state.enabled ? '已启用账号分工' : '账号分工未启用' }} · 主账号：{{ state.main.label || '未选择' }} · 下载副账号：{{ state.content_account_ids?.length ?? (state.content_account_id ? 1 : 0) }} 个</p><button class="button secondary small" @click="emit('manage')">管理账号分工</button></div>
+      <div v-if="compact" class="roles-summary"><p class="field-hint">{{ state.enabled ? '已启用账号分工' : '账号分工未启用' }} · 主账号：{{ state.main.label || '未选择' }} · 图片下载账号：{{ state.content_account_ids?.length ?? (state.content_account_id ? 1 : 0) }} 个</p><button class="button secondary small" @click="emit('manage')">管理账号分工</button></div>
       <template v-else>
       <div class="role-statuses">
         <div v-for="(role, key) in {main: state.main, content: state.content}" :key="key" class="role-status">
-          <strong>{{ key === 'main' ? '主账号 · 检索资料' : '副账号 · 下载正文' }}</strong>
+          <strong>{{ key === 'main' ? '主账号 · 检索作品' : '副账号 · 图片下载' }}</strong>
           <span>{{ role.label || '—' }}</span>
           <small class="status-pill" :class="role.status === 'verified' ? 'success' : role.status === 'missing' ? 'failed' : 'neutral'" :title="role.status === 'verified' ? '添加账号时通过登录验证；实际会话可能过期，任务失败时请重新登录并选择。' : ''">{{ names[role.status] }}</small>
         </div>
@@ -62,8 +62,8 @@ onMounted(load)
       <form @submit.prevent="save">
         <label class="role-enabled"><input v-model="form.enabled" type="checkbox" :disabled="busy || loading" />启用主副账号分工</label>
         <label class="field">主账号<select v-model="form.main_account_id" :disabled="busy || loading" :required="form.enabled"><option value="">请选择检索账号</option><option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.label }}</option></select></label>
-        <label class="field">副账号<select v-model="form.content_account_id" :disabled="busy || loading" :required="form.enabled"><option value="">请选择下载账号</option><option v-for="account in accounts" :key="account.id" :value="account.id" :disabled="account.id === form.main_account_id">{{ account.label }}</option></select></label>
-        <p class="field-hint">主账号用于关注、作者、收藏、系列、资料与封面；副账号用于原图和小说正文。启用后，现有订阅及队列任务按此分工执行；副账号失败时不改用主账号下载。</p>
+        <label class="field">图片下载账号<select v-model="form.content_account_id" :disabled="busy || loading" :required="form.enabled"><option value="">请选择下载账号</option><option v-for="account in accounts" :key="account.id" :value="account.id" :disabled="account.id === form.main_account_id">{{ account.label }}</option></select></label>
+        <p class="field-hint">主账号检索作品、同步关注及作者／收藏／系列目录；图片下载账号获取原图。作品详情／小说正文和作者资料需在账号管理中另外选择。未配置对应功能时不会改用主账号。</p>
         <div class="role-actions"><button class="button secondary small" :disabled="busy || loading || !dirty"><LoaderCircle v-if="busy" class="spin" :size="15" />保存分工</button><button type="button" class="text-button" :disabled="busy" @click="emit('login')">登录其他账号</button></div>
         <p v-if="accounts.length < 2" class="field-hint">需要两个 Pixiv 账号。授权副账号前，请在 Pixiv 官方页切换到该账号。</p>
       </form>

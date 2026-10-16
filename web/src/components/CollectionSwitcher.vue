@@ -6,7 +6,7 @@ import { bytes } from '../types'
 const props = defineProps<{collections: Collection[]; selected: string; total: number; error?: string}>()
 defineEmits<{select: [source: string]; retry: []}>()
 const current = computed(() => props.collections.find(collection => collection.source === props.selected))
-const initials: Record<string, string> = {pixiv: 'P', ehentai: 'E', picacg: '哔', jm: 'JM'}
+const initials: Record<string, string> = {pixiv: 'P', ehentai: 'E', picacg: '哔', jm: 'JM', kemono: 'K'}
 </script>
 
 <template>

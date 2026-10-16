@@ -13,7 +13,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from .integrations.base import ConnectorError, validate_url
-from .integrations.picacg import API_ROOT, signed_headers
+from .integrations.picacg import signed_headers
 
 
 class SourceLoginError(ConnectorError):
@@ -78,15 +78,20 @@ def _pica_data(body):
 
 
 def login_picacg(username, password):
+    from .endpoint_config import DEFAULTS, get_endpoint, assert_endpoint_request
+    root = get_endpoint("picacg")
+    hosts = (urlparse(root).hostname,)
     with _client() as client:
-        status, _, _, body = _response(client, "POST", API_ROOT + "auth/sign-in", hosts=("picaapi.picacomic.com",),
+        if root != DEFAULTS["picacg"][1]:
+            client.event_hooks["request"].append(lambda request: assert_endpoint_request(str(request.url), root))
+        status, _, _, body = _response(client, "POST", root + "/auth/sign-in", hosts=hosts,
             headers=signed_headers("auth/sign-in", "POST"), json={"email": username, "password": password})
         if status != 200:
             raise SourceLoginError("哔咔登录服务返回意外跳转，请更新适配器", 502)
         token = _pica_data(body).get("token")
         if not isinstance(token, str) or not token or len(token) > 8192:
             raise SourceLoginError("哔咔未返回有效登录令牌", 502)
-        status, _, _, body = _response(client, "GET", API_ROOT + "users/profile", hosts=("picaapi.picacomic.com",),
+        status, _, _, body = _response(client, "GET", root + "/users/profile", hosts=hosts,
             headers=signed_headers("users/profile", "GET", token=token))
         user = _pica_data(body).get("user")
         if (status != 200 or not isinstance(user, dict) or not isinstance(user.get("_id"), str)
@@ -97,9 +102,13 @@ def login_picacg(username, password):
 
 def login_jm(username, password):
     # Use exactly the origin also used by JMConnector, since AVS is domain-specific.
+    from .endpoint_config import DEFAULTS, get_endpoint, assert_endpoint_request
+    root = get_endpoint("jm")
     with _client() as client:
-        status, _, cookies, body = _response(client, "POST", "https://18comic.vip/login", hosts=("18comic.vip",),
-            headers={"Origin": "https://18comic.vip", "Referer": "https://18comic.vip/login", "X-Requested-With": "XMLHttpRequest"},
+        if root != DEFAULTS["jm"][1]:
+            client.event_hooks["request"].append(lambda request: assert_endpoint_request(str(request.url), root))
+        status, _, cookies, body = _response(client, "POST", root + "/login", hosts=(urlparse(root).hostname,),
+            headers={"Origin": root, "Referer": root + "/login", "X-Requested-With": "XMLHttpRequest"},
             data={"username": username, "password": password, "id_remember": "on", "login_remember": "on", "submit_login": ""})
         if status != 200:
             raise SourceLoginError("JM 登录服务返回意外跳转，请在平台完成验证后重试")

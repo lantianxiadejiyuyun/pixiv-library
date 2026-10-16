@@ -57,7 +57,7 @@ def enqueue_series(db, payload):
 def sync_series(db, payload, report, guard):
     from .jobs import get_connector, account_credentials, merge_remote_item, enqueue_import
     connector = get_connector("pixiv", account_credentials(db, "pixiv", payload.get("check_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
-                             purpose="checks", pinned=bool(payload.get("check_account_id"))))
+                             purpose="metadata", pinned=bool(payload.get("check_account_id"))))
     membership = select(SeriesEntry.item_id).join(Series, Series.id == SeriesEntry.series_id).where(
         Series.source == "pixiv", Series.source_id == payload["remote_id"], Series.kind == payload["series_kind"])
     known_members = dict(db.execute(select(Item.source_id, Item.id).where(Item.source == "pixiv", or_(

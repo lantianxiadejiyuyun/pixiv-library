@@ -21,7 +21,8 @@ def accounts(client):
 
 
 def enable(client, accounts):
-    result = client.put(URL, json={'enabled': True, 'main_account_id': accounts['main'], 'content_account_id': accounts['content']})
+    result = client.put(URL, json={'enabled': True, 'main_account_id': accounts['main'], 'content_account_id': accounts['content'],
+        'detail_account_ids': [accounts['main']]})
     assert result.status_code == 200, result.text
     return result.json()
 
@@ -104,10 +105,13 @@ def test_real_worker_routes_metadata_to_main_and_body_to_secondary_preserving_ta
     item_id = metadata['item_id']
     with SessionLocal() as db:
         assert db.query(Job).filter(Job.kind == 'import_content').count() == 0
-    assert calls == [('main-test', False, ident), ('content-test', True, ident)]
+    assert calls == ([('main-test', True, ident)] if ident.startswith('novel:') else [('main-test', False, ident), ('content-test', True, ident)])
     item = client.get('/api/items/' + item_id).json()
-    assert item['content_state'] == 'ready' and item['title'] == '主账号资料' and item['rating'] == 'general'
-    assert [tag['name'] for tag in item['tags']] == ['主账号标签']
+    assert item['content_state'] == 'ready'
+    # The synthetic connector returns alternate metadata when download=True.
+    assert item['title'] == ('副账号返回的标题' if ident.startswith('novel:') else '主账号资料')
+    assert item['rating'] == ('adult' if ident.startswith('novel:') else 'general')
+    assert [tag['name'] for tag in item['tags']] == (['副账号标签'] if ident.startswith('novel:') else ['主账号标签'])
 
 
 @pytest.mark.parametrize('failure', ['deleted', 'remote_error'])

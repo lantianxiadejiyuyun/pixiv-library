@@ -32,7 +32,7 @@ class SelectionInput(BaseModel):
 
 
 class TestInput(BaseModel):
-    platform: Literal["pixiv", "ehentai", "picacg", "jm"]
+    platform: Literal["pixiv", "ehentai", "picacg", "jm", "kemono"]
 
 
 @router.get("/network/proxy")
@@ -116,19 +116,23 @@ def select_node(value: SelectionInput, db=Depends(get_db)):
 
 # Public roots only: no account, authorization code, cookie or library data sent.
 TEST_TARGETS = {"pixiv": "https://www.pixiv.net/", "ehentai": "https://e-hentai.org/",
-                "picacg": "https://picaapi.picacomic.com/", "jm": "https://18comic.vip/"}
+                "picacg": "https://picaapi.picacomic.com/", "jm": "https://18comic.vip/", "kemono": "https://kemono.cr/"}
 
 
 @router.post("/network/proxy/test")
 def test_proxy(value: TestInput, db=Depends(get_db)):
     proxy = httpx_proxy(read_config(db))
-    url = TEST_TARGETS[value.platform]
+    from .endpoint_config import read_config as read_endpoint, assert_endpoint_request
+    endpoint = read_endpoint(value.platform, db)
+    url = endpoint["custom_url"] if endpoint["enabled"] else TEST_TARGETS[value.platform]
     start = time.monotonic()
     status = None
     reachable = False
     message = "连接失败，请检查代理地址、端口、Clash 的局域网访问设置和节点状态"
     try:
         from urllib.parse import urlsplit
+        if endpoint["enabled"]:
+            assert_endpoint_request(url, url)
         validate_url(url, (urlsplit(url).hostname,), resolve=not bool(proxy))
         with httpx.Client(proxy=proxy, timeout=12, trust_env=False, follow_redirects=False) as client:
             with client.stream("GET", url) as response:

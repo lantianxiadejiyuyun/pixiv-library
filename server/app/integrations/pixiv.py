@@ -3,8 +3,8 @@ from collections.abc import Mapping
 import html
 import re
 from pathlib import PurePosixPath
-from urllib.parse import urlparse, parse_qs
-from .base import Connector, ConnectorError, JobCancelled, RemoteWork, SafeHTTP, validate_url, fetch_preview_cover, pace_sdk_requests
+from urllib.parse import urlparse, parse_qs, urlsplit, urlunsplit
+from .base import Connector, ConnectorError, JobCancelled, RemoteWork, SafeHTTP, validate_url, fetch_preview_cover, pace_sdk_requests, _SDKCancellation
 
 
 class PixivConnector(Connector):
@@ -26,8 +26,12 @@ class PixivConnector(Connector):
         try:
             from pixivpy3 import AppPixivAPI
             from app.network import requests_proxies
+            from app.endpoint_config import get_endpoint
+            if not hasattr(self, "_api_endpoint"):
+                self._api_endpoint = get_endpoint("pixiv")
             api = AppPixivAPI(timeout=40, proxies=requests_proxies())
             api.requests.trust_env = False
+            self._bind_endpoint(api, self._api_endpoint)
             pace_sdk_requests(api.requests, "send", cancellation_boundary=(api, "requests_call"),
                 rate_limit_message="Pixiv 请求受到限流（HTTP 429），已记录平台等待时间；请稍后重试，建议降低并发或开启请求限速")
             auth = api.auth(refresh_token=self.credentials["refresh_token"])
@@ -40,6 +44,42 @@ class PixivConnector(Connector):
             raise
         except Exception as exc:
             raise ConnectorError("Pixiv 登录失败，请检查 refresh_token 和网络") from exc
+
+    @staticmethod
+    def _bind_endpoint(api, endpoint):
+        """SDK set_api_proxy also rewrites OAuth; only rewrite App API sends."""
+        from app.endpoint_config import DEFAULTS, assert_endpoint_request
+        original = api.requests.send
+        custom = endpoint != DEFAULTS["pixiv"][1]
+
+        def send(request, **kwargs):
+            try:
+                parsed = urlsplit(request.url)
+                if (parsed.scheme != "https" or parsed.port not in (None, 443)
+                        or parsed.username is not None or parsed.password is not None or parsed.fragment):
+                    raise ConnectorError("Pixiv SDK 请求超出允许的接口范围")
+                if parsed.hostname == "app-api.pixiv.net":
+                    if custom:
+                        root = urlsplit(endpoint)
+                        request.url = urlunsplit((root.scheme, root.netloc, root.path.rstrip("/") + parsed.path, parsed.query, ""))
+                        request.headers.pop("Host", None)
+                        assert_endpoint_request(request.url, endpoint)
+                elif parsed.hostname != "oauth.secure.pixiv.net" or parsed.path != "/auth/token":
+                    raise ConnectorError("Pixiv SDK 请求超出允许的接口范围")
+                # Refuse redirects before Requests can copy bearer/cookie state
+                # or resend the OAuth refresh-token POST to a new origin.
+                kwargs["allow_redirects"] = False
+                response = original(request, **kwargs)
+                if response.status_code in (301, 302, 303, 307, 308):
+                    response.close()
+                    raise ConnectorError("Pixiv 接口返回重定向，已停止；请检查接口地址")
+                return response
+            except ConnectorError as exc:
+                # Preserve safe errors through pixivpy's broad Exception catch;
+                # pace_sdk_requests restores them at the requests_call boundary.
+                raise _SDKCancellation(exc) from None
+
+        api.requests.send = send
 
     @staticmethod
     def _check(response):

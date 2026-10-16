@@ -23,6 +23,7 @@ from .library import SUPPORTED_EXTENSIONS, build_item_view, import_files, import
 from .models import Asset, Item, ItemTag, Job, ReadingProgress, Tag, utcnow
 from .schemas import FolderImport, ItemPatch, LoginRequest, ProgressUpdate
 from .storage import assert_storage_available, initialize_storage, resolve_asset_path
+from .mobile_admin import router as mobile_admin_router
 
 
 @asynccontextmanager
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="栖页 · 私人图书馆", version="0.1.0", lifespan=lifespan, docs_url="/api/docs" if settings.environment != "production" else None, redoc_url=None)
+app.include_router(mobile_admin_router, prefix="/api")
 
 
 @app.middleware("http")
@@ -295,10 +297,11 @@ def get_asset(asset_id: str, db: Session) -> tuple[Asset, Path]:
 
 
 @api.get("/assets/{asset_id}/content")
+@api.head("/assets/{asset_id}/content", include_in_schema=False)
 def asset_content(asset_id: str, db: Session = Depends(get_db)):
     asset, path = get_asset(asset_id, db)
     # Text is always served as plain text, never active HTML or SVG.
-    return FileResponse(path, media_type=asset.mime_type, headers={"Content-Security-Policy": "default-src 'none'; sandbox"})
+    return FileResponse(path, media_type=asset.mime_type, headers={"Content-Security-Policy": "default-src 'none'; sandbox", "X-Content-Type-Options": "nosniff"})
 
 
 @api.get("/assets/{asset_id}/text-sections")
@@ -408,6 +411,8 @@ def public_settings():
 app.include_router(api)
 from .pixiv_accounts import router as pixiv_accounts_router
 app.include_router(pixiv_accounts_router, prefix="/api")
+from .endpoint_config import router as platform_endpoints_router
+app.include_router(platform_endpoints_router, prefix="/api")
 from .app_updates import router as app_updates_router
 app.include_router(app_updates_router, prefix="/api")
 from .database_export import router as database_export_router

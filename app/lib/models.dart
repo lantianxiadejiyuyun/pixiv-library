@@ -112,8 +112,8 @@ class LibraryItem {
     this,
     favorite: value['is_favorite'] as bool,
     groups: List<String>.from(value['favorite_group_ids'] as List),
-    score: (value['user_score'] as num).toInt(),
   );
+  LibraryItem withScore(int score) => LibraryItem._copy(this, score: score);
   LibraryItem._copy(
     LibraryItem item, {
     ReadingPosition? progress,

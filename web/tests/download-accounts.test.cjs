@@ -138,3 +138,24 @@ test('同账号可多选下载详情检查，分别保存各账号并发',async(
   assert.deepEqual(payload.account_limits,{main:3,first:4,second:2})
   assert.deepEqual(payload.content_account_ids,['first'])
 })
+
+test('主账号可以显式兼任作品内容与作者资料，保存时不要求图片下载账号',async()=>{
+  const h=harness();await h.state.load()
+  h.state.form.enabled=true;h.state.form.content_account_ids=[]
+  h.state.form.detail_account_ids=['main'];h.state.form.check_account_ids=['main','second']
+  await h.state.save()
+  const payload=JSON.parse(h.requests.find(r=>r.method==='PUT').body)
+  assert.deepEqual(payload.content_account_ids,[])
+  assert.deepEqual(payload.detail_account_ids,['main'])
+  assert.deepEqual(payload.check_account_ids,['main','second'])
+})
+
+test('未分配的作品内容与作者资料功能保持空池，不自动填入主账号',async()=>{
+  const h=harness();await h.state.load()
+  h.state.form.enabled=true
+  await h.state.save()
+  const payload=JSON.parse(h.requests.find(r=>r.method==='PUT').body)
+  assert.deepEqual(payload.detail_account_ids,[])
+  assert.deepEqual(payload.check_account_ids,[])
+  assert.deepEqual(payload.content_account_ids,['first'])
+})

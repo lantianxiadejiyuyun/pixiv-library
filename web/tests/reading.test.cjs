@@ -25,7 +25,7 @@ function harness(record, handler) {
   const component = evaluate(readerSource, {
     vue: {...Vue, onMounted: () => {}, onBeforeUnmount: () => {}},
     '../api': {api, errorMessage: value => value.message}, '../types': types, '../reading': reading, './SeriesPanel.vue': {},
-  }, {AbortController, requestAnimationFrame: callback => callback(), setTimeout: () => 1, clearTimeout: () => {}}).default
+  }, {AbortController, document: {fullscreenElement: null}, requestAnimationFrame: callback => callback(), setTimeout: () => 1, clearTimeout: () => {}}).default
   const state = component.setup(record && {item: record}, {expose() {}, emit: (...args) => events.push(args)})
   state.content.value = {scrollHeight: 2000, clientHeight: 500, scrollTop: 0}
   return {state, calls, events}
@@ -111,6 +111,77 @@ test('正文未就绪时不请求章节、不写阅读进度', async () => {
   await state.saveProgress()
   assert.equal(state.assets.value.length, 0)
   assert.equal(calls.length, 0)
+})
+
+function attachVideo(state, id, duration = 100) {
+  state.video.value = Vue.markRaw({dataset: {assetId: id}, duration, currentTime: 0, pause() {}})
+  return {element: state.video.value, event: {currentTarget: state.video.value}}
+}
+
+test('视频恢复播放比例，元数据与定位完成前不把上次进度写成零', async () => {
+  const {state, calls} = harness(item({type:'article',assets:[asset('video',0,'video/mp4')]}), handler)
+  await state.displayAsset({page:0,section:0,offset:0.4});await state.saveProgress()
+  assert.equal(calls.length,0)
+  const {element,event}=attachVideo(state,'video')
+  state.videoLoaded(event)
+  assert.equal(element.currentTime,40);assert.equal(state.percent.value,40)
+  element.currentTime=0;state.videoProgress(event)
+  assert.equal(state.offset.value,0.4)
+  element.currentTime=40;state.videoProgress(event,true,true);await state.saveProgress()
+  assert.equal(calls.at(-1).body.offset,0.4)
+  element.currentTime=67.5;await state.saveProgress()
+  assert.deepEqual(calls.at(-1).body,{page:0,section:0,offset:0.675})
+  assert(!calls.some(call=>call.url.endsWith('/text-sections')))
+})
+
+test('视频失败保留进度，重试只重建当前播放器并恢复位置', async () => {
+  const {state,calls}=harness(item({type:'article',assets:[asset('v1',0,'video/webm'),asset('v2',1,'video/mp4')]}),handler)
+  await state.displayAsset();let currentVideo=attachVideo(state,'v1')
+  state.videoLoaded(currentVideo.event);currentVideo.element.currentTime=65;state.videoProgress(currentVideo.event,true)
+  const revision=state.videoRevision.value
+  state.videoFailed(currentVideo.event);await state.saveProgress()
+  assert.match(state.error.value,/视频读取失败/);assert.equal(state.offset.value,0.65)
+  const writes=calls.length
+  await state.displayAsset({page:state.current.value,section:0,offset:state.offset.value})
+  assert.equal(state.currentAsset.value.id,'v1');assert.equal(state.videoRevision.value,revision+1)
+  assert.equal(calls.length,writes)
+  currentVideo=attachVideo(state,'v1');state.videoLoaded(currentVideo.event)
+  assert.equal(currentVideo.element.currentTime,65)
+  assert.equal(state.error.value,'')
+})
+
+test('混合图片正文视频可连续前后翻，返回正文保留本次章节与位置',async()=>{
+  const {state,calls}=harness(item({type:'article',assets:[asset('image',0,'image/png'),asset('text',1),asset('video',2,'video/mp4')]}),handler)
+  await state.displayAsset();await state.next()
+  assert.equal(state.currentAsset.value.id,'text');assert.equal(state.hasPrevious.value,true)
+  await state.goSection(2);state.offset.value=0.6
+  assert.equal(state.nextLabel.value,'下一文件')
+  await state.next();assert.equal(state.currentAsset.value.id,'video')
+  const {event}=attachVideo(state,'video');state.videoLoaded(event)
+  await state.previous()
+  assert.equal(state.currentAsset.value.id,'text');assert.equal(state.section.value,2);assert.equal(state.offset.value,0.6)
+  await state.goSection(0);await state.previous()
+  assert.equal(state.currentAsset.value.id,'image')
+  const textSaved=calls.filter(call=>call.url.endsWith('/progress') && call.body.page===1)
+  assert(textSaved.some(call=>call.body.section===2 && call.body.offset===0.6))
+})
+
+test('从后一个文件首次向前进入正文时定位末章，旧视频事件不污染新文件',async()=>{
+  const {state}=harness(item({type:'article',assets:[asset('text',0),asset('video',1,'video/mp4')],progress:{page:1,offset:0.3}}),handler)
+  await state.displayAsset({page:1,section:0,offset:0.3})
+  const {event}=attachVideo(state,'video');state.videoLoaded(event)
+  await state.previous()
+  assert.equal(state.current.value,0);assert.equal(state.section.value,2)
+  state.videoFailed(event);state.videoProgress(event,true,true)
+  assert.equal(state.error.value,'');assert.equal(state.offset.value,0)
+})
+
+test('视频键盘方向键留给播放器，不触发作品翻页',async()=>{
+  const {state}=harness(item({type:'article',assets:[asset('video',0,'video/mp4'),asset('image',1,'image/png')]}),handler)
+  await state.displayAsset()
+  let prevented=false
+  state.keydown({key:'ArrowRight',target:{matches:()=>true},preventDefault(){prevented=true}})
+  assert.equal(state.current.value,0);assert.equal(prevented,false)
 })
 test('超界阅读位置收敛到实际章节，异常值不会造成 NaN', () => {
   assert.equal(reading.restoreTextPosition({page: 0, section: 50, offset: 9}, sections).section, 2)

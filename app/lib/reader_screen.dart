@@ -2,10 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api.dart';
 import 'api_image.dart';
-import 'article_body.dart';
+import 'novel_reader_body.dart';
 import 'models.dart';
 import 'comic_flow_reader.dart';
 import 'reader_preferences.dart';
+import 'video_asset_player.dart';
 
 int _bounded(int value, int length) =>
     length <= 0 ? 0 : value.clamp(0, length - 1);
@@ -37,13 +38,16 @@ class _ReaderScreenState extends State<ReaderScreen>
   late PageController _pages;
   final _textScroll = ScrollController();
   final _flowController = ComicFlowController();
+  final _videoPlayback = VideoAssetPlayback();
+  int _assetNavigation = 0;
   bool _flow = false, _preferredFlow = false, _modeTouched = false;
-  bool _modeReady = false;
+  bool _modeReady = false, _fontTouched = false;
   bool get _canFlow =>
       _item.assets.isNotEmpty &&
       _item.assets.every((asset) => asset.mimeType.startsWith('image/'));
   List<TextChapter> _chapters = [];
   int _page = 0, _chapter = 0, _loadVersion = 0;
+  int _textRestoreRevision = 0;
   double _offset = 0, _fontSize = 19;
   bool _loading = false,
       _restoring = false,
@@ -59,10 +63,13 @@ class _ReaderScreenState extends State<ReaderScreen>
   bool get _text =>
       _item.assets.isNotEmpty &&
       _item.assets[_page].mimeType.startsWith('text/');
+  bool get _video =>
+      _item.assets.isNotEmpty &&
+      _item.assets[_page].mimeType.startsWith('video/');
   ReadingPosition get _position => ReadingPosition(
     page: _page,
     section: _text ? _chapter : 0,
-    offset: _text || _flow ? _offset : 0,
+    offset: _text || _flow || _video ? _offset : 0,
   );
   double get _percent => _item.assets.isEmpty
       ? 0
@@ -72,7 +79,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                     ? 0
                     : (_chapter + _offset) / _chapters.length)) /
             _item.assets.length
-      : (_page + 1) / _item.assets.length;
+      : (_page + (_video ? _offset : 1)) / _item.assets.length;
 
   @override
   void initState() {
@@ -88,8 +95,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     _pages = PageController(initialPage: _page);
     _textScroll.addListener(_onScroll);
     if (_item.readable && _text) _loadText(_chapter, _offset);
-    if (_item.readable && !_text) _changed();
+    if (_item.readable && !_text && !_video) _changed();
     _loadMode();
+    _loadFont();
   }
 
   Future<void> _loadMode() async {
@@ -107,6 +115,23 @@ class _ReaderScreenState extends State<ReaderScreen>
       _preferredFlow = flow;
       _flow = flow && _canFlow;
       _modeReady = true;
+    });
+  }
+
+  Future<void> _loadFont() async {
+    double size = 19;
+    try {
+      size = await widget.preferences.fontSize().timeout(
+        const Duration(milliseconds: 400),
+        onTimeout: () => 19,
+      );
+    } catch (_) {
+      /* Reading works when platform storage is unavailable. */
+    }
+    if (!mounted || _fontTouched || size == _fontSize) return;
+    setState(() {
+      _fontSize = size.clamp(15, 30);
+      if (_text) _restoring = true;
     });
   }
 
@@ -156,7 +181,25 @@ class _ReaderScreenState extends State<ReaderScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
-      _flush();
+      unawaited(_pauseVideoAndFlush());
+    }
+  }
+
+  Future<void> _pauseVideoAndFlush() async {
+    await _videoPlayback.pause();
+    await _flush();
+  }
+
+  void _videoPosition(String itemId, int page, double offset, bool immediate) {
+    if (!mounted || _item.id != itemId || _page != page || !_video) return;
+    setState(() => _offset = _ratio(offset));
+    _dirty = true;
+    if (immediate) {
+      unawaited(_flush());
+    } else if (_saveTimer?.isActive != true) {
+      // Continuous playback must save periodically, rather than indefinitely
+      // postponing a debounce timer on every native position notification.
+      _saveTimer = Timer(const Duration(seconds: 5), _flush);
     }
   }
 
@@ -193,9 +236,9 @@ class _ReaderScreenState extends State<ReaderScreen>
         _chapters = chapters;
         _chapter = _bounded(section, chapters.length);
         _offset = _ratio(offset);
+        _textRestoreRevision++;
         _loading = false;
       });
-      _restoreScroll(_offset, version);
       if (markPosition) _changed();
     } catch (e) {
       if (mounted && version == _loadVersion) {
@@ -206,20 +249,6 @@ class _ReaderScreenState extends State<ReaderScreen>
         });
       }
     }
-  }
-
-  void _restoreScroll(double offset, [int? expectedVersion]) {
-    final version = expectedVersion ?? _loadVersion;
-    _restoring = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || version != _loadVersion) return;
-      if (_textScroll.hasClients) {
-        _textScroll.jumpTo(
-          _textScroll.position.maxScrollExtent * _ratio(offset),
-        );
-      }
-      _restoring = false;
-    });
   }
 
   void _onScroll() {
@@ -322,6 +351,8 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _leave() async {
     if (_leaving) return;
     setState(() => _leaving = true);
+    await _videoPlayback.pause();
+    if (!mounted) return;
     final saved = await _ensureSaved();
     if (!mounted) return;
     if (!saved) {
@@ -340,6 +371,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     double offset = 0,
   }) async {
     if (_loading || page < 0 || page >= _item.assets.length) return;
+    final navigation = ++_assetNavigation;
+    await _videoPlayback.pause();
+    if (!mounted || navigation != _assetNavigation || _leaving) return;
     // Capture the old position without making page gestures wait for the network.
     unawaited(_flush());
     final wasText = _text;
@@ -362,42 +396,40 @@ class _ReaderScreenState extends State<ReaderScreen>
       } else if (_pages.hasClients && _pages.page?.round() != page) {
         _pages.jumpToPage(page);
       }
-      _changed();
+      if (!_video) _changed();
     }
   }
 
   void _imagePageChanged(int page) {
     if (page == _page) return;
-    setState(() {
-      _page = page;
-      _chapter = 0;
-      _offset = 0;
-    });
-    if (_text) {
-      _loadText(0, 0, markPosition: true);
-    } else {
-      _changed();
-    }
+    unawaited(_changeAsset(page));
   }
 
   Future<void> _changeChapter(int chapter, {double offset = 0}) async {
     if (_loading || chapter < 0 || chapter >= _chapters.length) return;
     unawaited(_flush());
     setState(() {
+      _restoring = true;
       _chapter = chapter;
       _offset = offset;
+      _textRestoreRevision++;
     });
-    _restoreScroll(offset);
     _changed();
   }
 
   void _font(double change) {
-    setState(() => _fontSize = (_fontSize + change).clamp(15, 30));
-    _restoreScroll(_offset);
+    _fontTouched = true;
+    setState(() {
+      _restoring = true;
+      _fontSize = (_fontSize + change).clamp(15, 30);
+    });
+    unawaited(widget.preferences.saveFontSize(_fontSize).catchError((_) {}));
   }
 
   Future<void> _directory() async {
     if (_loading || _item.assets.isEmpty) return;
+    await _videoPlayback.pause();
+    if (!mounted) return;
     final jump = await showModalBottomSheet<_ReaderJump>(
       context: context,
       isScrollControlled: true,
@@ -498,6 +530,8 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   Future<void> _series() async {
+    await _videoPlayback.pause();
+    if (!mounted) return;
     final id = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -512,8 +546,13 @@ class _ReaderScreenState extends State<ReaderScreen>
       if (!mounted) return;
       final item = LibraryItem.fromJson(data);
       if (!item.readable) {
-        setState(() => _loading = false);
-        if (_text) _restoreScroll(_offset);
+        setState(() {
+          _loading = false;
+          if (_text) {
+            _restoring = true;
+            _textRestoreRevision++;
+          }
+        });
         await _unready(item);
         return;
       }
@@ -533,11 +572,16 @@ class _ReaderScreenState extends State<ReaderScreen>
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => oldPages.dispose());
       if (_text) await _loadText(_chapter, _offset);
-      if (!_text) _changed();
+      if (!_text && !_video) _changed();
     } catch (e) {
       if (mounted) {
-        setState(() => _loading = false);
-        if (_text) _restoreScroll(_offset);
+        setState(() {
+          _loading = false;
+          if (_text) {
+            _restoring = true;
+            _textRestoreRevision++;
+          }
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(_readError(e))));
@@ -751,34 +795,23 @@ class _ReaderScreenState extends State<ReaderScreen>
                         ),
                       )
                     : _text
-                    ? SelectionArea(
-                        child: SingleChildScrollView(
-                          controller: _textScroll,
-                          padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 760),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  if (_chapters.isNotEmpty) ...[
-                                    Text(
-                                      _chapters[_chapter].title.isEmpty
-                                          ? '第 ${_chapter + 1} 节'
-                                          : _chapters[_chapter].title,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .headlineSmall
-                                          ?.copyWith(height: 1.5),
-                                    ),
-                                    const SizedBox(height: 22),
-                                    ArticleBody(
-                                      text: _chapters[_chapter].text,
-                                      fontSize: _fontSize,
-                                    ),
-                                    const SizedBox(height: 28),
-                                    if (atEnd)
-                                      OutlinedButton.icon(
+                    ? _chapters.isEmpty
+                          ? const SizedBox.shrink()
+                          : SelectionArea(
+                              child: NovelReaderBody(
+                                key: ValueKey((_item.id, _page)),
+                                text: _chapters[_chapter].text,
+                                title: _chapters[_chapter].title.isEmpty
+                                    ? '第 ${_chapter + 1} 节'
+                                    : _chapters[_chapter].title,
+                                fontSize: _fontSize,
+                                restoreOffset: _offset,
+                                restoreRevision: _textRestoreRevision,
+                                controller: _textScroll,
+                                onLayoutStart: () => _restoring = true,
+                                onLayoutReady: () => _restoring = false,
+                                footer: atEnd
+                                    ? OutlinedButton.icon(
                                         onPressed: () {
                                           setState(() => _offset = 1);
                                           _changed();
@@ -791,19 +824,13 @@ class _ReaderScreenState extends State<ReaderScreen>
                                               : '标记读完',
                                         ),
                                       )
-                                    else
-                                      FilledButton.tonalIcon(
+                                    : FilledButton.tonalIcon(
                                         onPressed: _next,
                                         icon: const Icon(Icons.arrow_forward),
                                         label: const Text('下一节'),
                                       ),
-                                  ],
-                                ],
                               ),
-                            ),
-                          ),
-                        ),
-                      )
+                            )
                     : _flow
                     ? ComicFlowReader(
                         key: ValueKey(_item.id),
@@ -822,6 +849,23 @@ class _ReaderScreenState extends State<ReaderScreen>
                         onPageChanged: _imagePageChanged,
                         itemBuilder: (_, page) {
                           final asset = _item.assets[page];
+                          if (asset.mimeType.startsWith('video/')) {
+                            final itemId = _item.id;
+                            return VideoAssetPlayer(
+                              key: ValueKey((_item.id, asset.id)),
+                              api: widget.api,
+                              assetId: asset.id,
+                              active: page == _page,
+                              initialOffset: page == _page ? _offset : 0,
+                              playback: _videoPlayback,
+                              onPosition: (offset, immediate) => _videoPosition(
+                                itemId,
+                                page,
+                                offset,
+                                immediate,
+                              ),
+                            );
+                          }
                           if (!asset.mimeType.startsWith('image/')) {
                             return Center(
                               child: TextButton(

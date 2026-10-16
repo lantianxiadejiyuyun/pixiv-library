@@ -16,7 +16,7 @@ MARKER = ".library-storage"
 MARKER_CONTENT = "qiye-library-v1\n"
 COLLECTIONS = {
     "pixiv": "Pixiv", "ehentai": "E-Hentai", "picacg": "哔咔 PicACG",
-    "jm": "JM 天堂", "local": "本地书库",
+    "jm": "JM 天堂", "kemono": "Kemono", "local": "本地书库",
 }
 
 

@@ -40,11 +40,15 @@ class EHentaiConnector(Connector):
         return f"{match[1]}:{match[2].lower()}"
 
     def fetch(self, value, *, download=True, checkpoint=lambda value: None):
+        from app.endpoint_config import DEFAULTS, get_endpoint, guard_http_client
         ident = self.normalize_id(value)
         gid, token = ident.split(":")
-        client = SafeHTTP(("api.e-hentai.org",))
+        endpoint = get_endpoint("ehentai")
+        client = SafeHTTP((urlparse(endpoint).hostname,))
         try:
-            content = client.fetch("https://api.e-hentai.org/api.php", method="POST",
+            if endpoint != DEFAULTS["ehentai"][1]:
+                guard_http_client(client, endpoint, exact_path=True)
+            content = client.fetch(endpoint, method="POST",
                 json={"method": "gdata", "gidlist": [[int(gid), token]], "namespace": 1}, limit=2 * 1024 * 1024)
             data = json.loads(content).get("gmetadata", [{}])[0]
         finally:

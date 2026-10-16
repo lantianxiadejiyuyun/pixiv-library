@@ -21,7 +21,8 @@ def add_account(token='third-test', user='30'):
 
 
 def configure(client, accounts, pool):
-    response = client.put(URL, json={'enabled': True, 'main_account_id': accounts['main'], 'content_account_ids': pool})
+    response = client.put(URL, json={'enabled': True, 'main_account_id': accounts['main'], 'content_account_ids': pool,
+        'detail_account_ids': [accounts['main']]})
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -71,7 +72,7 @@ def test_parallel_downloads_use_distinct_secondary_accounts_and_same_main(client
             return super().fetch(*args, **kwargs)
     monkeypatch.setattr(jobs, 'get_connector', lambda platform, credentials: Connector(credentials['refresh_token'], calls, False))
     with SessionLocal() as db:
-        identifiers = [jobs.enqueue_import(db, {'platform': 'pixiv', 'remote_id': ident}).id for ident in ('123', 'novel:124')]
+        identifiers = [jobs.enqueue_import(db, {'platform': 'pixiv', 'remote_id': ident}).id for ident in ('123', '124')]
     with ThreadPoolExecutor(max_workers=2) as executor:
         assert all(executor.map(lambda _: jobs.run_once(), range(2)))
     with SessionLocal() as db:

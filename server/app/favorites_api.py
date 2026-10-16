@@ -49,7 +49,13 @@ class FavoriteInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     favorite: StrictBool
     group_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] | None = Field(default=None, max_length=200)
+    # Retain this field for installed clients; new clients use the score endpoint.
     score: Annotated[int, Field(strict=True, ge=0, le=5)] | None = None
+
+
+class ScoreInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    score: Annotated[int, Field(strict=True, ge=0, le=5)]
 
 
 @router.get("/favorite-groups")
@@ -127,6 +133,16 @@ def favorite(item_id: str, value: FavoriteInput, db=Depends(get_db)):
         item.favorite.groups.extend(FavoriteGroupItem(group_id=ident) for ident in ids if ident not in retained)
     db.commit()
     return {"id": item_id, "is_favorite": True, "favorite_group_ids": sorted(link.group_id for link in item.favorite.groups), "user_score": item.user_score}
+
+
+@router.put("/items/{item_id}/score")
+def score(item_id: str, value: ScoreInput, db=Depends(get_db)):
+    item = db.scalar(select(Item).where(Item.id == item_id).with_for_update())
+    if item is None:
+        raise HTTPException(404, "作品不存在")
+    item.user_score = value.score
+    db.commit()
+    return {"id": item_id, "user_score": item.user_score}
 
 
 @router.post("/items/{item_id}/visit")

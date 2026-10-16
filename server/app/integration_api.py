@@ -58,11 +58,11 @@ class LanePatch(BaseModel):
 
 class CoverBackfillInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    source: Literal["pixiv", "ehentai", "picacg", "jm"] | None = None
+    source: Literal["pixiv", "ehentai", "picacg", "jm", "kemono"] | None = None
 
 
 class SubscriptionInput(BaseModel):
-    platform: Literal["pixiv", "ehentai", "picacg", "jm"]
+    platform: Literal["pixiv", "ehentai", "picacg", "jm", "kemono"]
     target_type: Literal["author", "tag", "search"]
     target: str = Field(min_length=1, max_length=512)
     label: str = Field(default="", max_length=191)
@@ -363,6 +363,14 @@ def check_target(platform, target_type, target):
         raise HTTPException(400, "Pixiv 作者订阅使用数字作者 ID")
     if platform == "picacg" and target_type == "author":
         raise HTTPException(400, "哔咔作者订阅尚未实现，请使用 tag 或 search")
+    if platform == "kemono":
+        if target_type == "author":
+            try:
+                get_connector(platform).normalize_author(target)
+            except (ConnectorError, ValueError) as exc:
+                raise HTTPException(400, str(exc)) from None
+        elif len(target) > 200 or target_type == "search" and len(target.strip()) < 3:
+            raise HTTPException(400, "Kemono 搜索至少 3 个字符；标签和搜索最多 200 个字符")
 
 
 @router.post("/subscriptions")

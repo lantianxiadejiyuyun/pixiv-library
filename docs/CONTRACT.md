@@ -18,10 +18,12 @@ Run Compose through `python scripts/compose.py [--intel] ...`, `deploy/run.ps1 [
 ## Shared backend conventions
 FastAPI, SQLAlchemy 2, Python 3.12. `app.database.get_db` yields a SQLAlchemy Session; `app.database.SessionLocal` is a session factory. `app.config.settings` exposes `database_url`, `storage_root` (Path), `admin_password`, `secret_key`, `model_dir` (Path). Backend core exports `app.models.Base`, `Item`, `Asset`, `Tag`, `ItemTag`, `Job`, `SourceAccount`, `Subscription`, `ReadingProgress`; UUID IDs are strings. Integrations import lazily when useful.
 
-Item fields: id,title,type,source,source_id,source_url,description,author,language,rating,created_at,updated_at. type is manga/illustration/novel/article; source is local/pixiv/ehentai/picacg/jm; rating is unknown/general/sensitive/adult. Assets: id,item_id,position,relative_path,original_name,mime_type,sha256,size_bytes,status. ItemTag has item_id,tag_id,origin (manual/source/ai),score,model_version. Tag: id,name. Job: id,kind,status,progress,payload(JSON),result(JSON),error,attempts,created_at,updated_at; kinds import/source_sync/ai; statuses queued/running/completed/failed/cancelled. SourceAccount: id,platform,label,credentials_encrypted(Text),created_at,updated_at. Subscription: id,platform,target_type,target,label,enabled,auto_download,created_at,updated_at,last_checked_at,last_error. ReadingProgress: item_id,page,updated_at. Backend may add necessary fields.
+Item fields: id,title,type,source,source_id,source_url,description,author,language,rating,created_at,updated_at. type is manga/illustration/novel/article; source is local/pixiv/ehentai/picacg/jm/kemono; rating is unknown/general/sensitive/adult. Assets: id,item_id,position,relative_path,original_name,mime_type,sha256,size_bytes,status. ItemTag has item_id,tag_id,origin (manual/source/ai),score,model_version. Tag: id,name. Job: id,kind,status,progress,payload(JSON),result(JSON),error,attempts,created_at,updated_at; kinds import/source_sync/ai; statuses queued/running/completed/failed/cancelled. SourceAccount: id,platform,label,credentials_encrypted(Text),created_at,updated_at. Subscription: id,platform,target_type,target,label,enabled,auto_download,created_at,updated_at,last_checked_at,last_error. ReadingProgress: item_id,page,updated_at. Backend may add necessary fields.
 
 ## HTTP contract
 All APIs at `/api`. Login required except health, auth status/login and one-time device pairing exchange. Administrator login uses an HttpOnly SameSite cookie; mobile sessions use scoped Bearer credentials. Password from LIBRARY_ADMIN_PASSWORD; local development default is `local-library`, production compose requires an explicit password. Web UI obtains status before rendering library. Errors are `{detail: string}` or sanitized validation errors without raw request inputs.
+
+Native mobile administration uses a separate in-memory administrator cookie obtained through the existing password login. It does not promote, replace or persist the QR reading credential. `GET /mobile-admin/catalog` requires administrator-cookie authorization and describes native forms for the existing management routes, including typed nested fields and file transfers. It executes no actions itself; all original validation, authorization, queue and upload boundaries still apply. Close/logout drops the mobile admin session; expiry returns to admin login while keeping reading bound. Management downloads are bounded to 256 MiB on the phone. File selection and saving use native OS dialogs.
 
 - GET /health -> {status, database, storage}
 - GET /auth/status -> {authenticated: bool}
@@ -44,7 +46,7 @@ All APIs at `/api`. Login required except health, auth status/login and one-time
 - POST /jobs/{id}/retry -> JobView; POST /jobs/{id}/cancel -> JobView
 - GET/PUT /queue/settings -> {paused,rate_limit_enabled,min_interval_seconds,max_interval_seconds,concurrency}; PUT accepts partial settings, validates 0 <= min <= max <= 60, a strict boolean rate_limit_enabled and a strict integer concurrency in 1..8 (default 1). Concurrency changes persist without restart; lowering the limit drains existing tasks without cancellation, and toggles never resume a paused queue. Legacy request_interval_seconds sets equal bounds and cannot be combined with min/max. rate_limit_enabled defaults true; false skips local random pacing and clears its pending reservation without changing pause, intervals or concurrency. Upstream 429/Retry-After cooldown remains enforced independently. QueueControl persists concurrency (migration f36ac740b51d), rate_limit_enabled, next_request_at (local reservation) and backoff_until (upstream cooldown). Migration e259b62f943a conservatively copies an existing legacy next_request_at into backoff_until once, because old versions combined both waits. Existing credentials and authentication rate limits are unaffected.
 - GET /queue/status -> {settings,counts:{queued,running,failed},active:JobView|null,active_jobs:JobView[]}; counts and active_jobs include only acquisition jobs, ordered by created_at/id, with no payload/credentials. Legacy active is the first running job or null.
-- POST /queue/covers {source?:pixiv|ehentai|picacg|jm} -> {queued,skipped,has_more,message}; queue at most 500 missing previews, idempotent, no body download or subscription changes.
+- POST /queue/covers {source?:pixiv|ehentai|picacg|jm|kemono} -> {queued,skipped,has_more,message}; queue at most 500 missing previews, idempotent, no body download or subscription changes.
 - POST /items/{id}/download -> JobView; idempotently request a remote item's body, using the preview stage when necessary.
 - GET /sources -> [{platform,label,status,capabilities:[{key,label,status}],accounts:[{id,label}],message}]
 - POST /sources/{platform}/accounts {label,credentials:{...}} -> {id,label,platform}; never return credentials
@@ -64,6 +66,17 @@ All APIs at `/api`. Login required except health, auth status/login and one-time
 - POST /ai/characters/image-search multipart {file OR asset_id,consent:true} -> {provider,matches:[{similarity,index_name,title,creator,characters,material,source_urls}],uploaded_size,notice}. Exactly one explicitly approved image; fixed SauceNAO endpoint, bounded re-encoded JPEG, no thumbnails/automatic tagging. Upstream failure is distinct from empty matches.
 - GET /settings -> {storage_root,import_root,database_kind,storage_available,ai_mode}; no secrets
 - POST /database/export -> authenticated `application/sql; charset=utf-8` attachment `qiye-database-YYYYMMDD-HHMMSS.sql` with `Cache-Control: no-store`. MySQL/PyMySQL only (501 otherwise), 409 for concurrent export, sanitized 503 for failure. Exports application table definitions/data and Alembic version from an InnoDB consistent snapshot; no media, environment keys, DROP/USE/CREATE DATABASE. Restore into an empty MySQL database. Temporary file and single-export lock are released after response completion/disconnect; generation is bounded to 1 GiB/600 seconds with bounded database I/O.
+
+### Kemono and platform API endpoints
+
+Kemono uses the existing `/sources/kemono/import` workflow with an official post URL or `service:user:post` remote ID, anonymous public access, and an independent `collections/kemono` namespace. Author subscriptions accept official creator URLs or `service:user`; tag and search subscriptions are supported, with a minimum of 3 characters for search and a maximum of 200 for tag/search. Public access does not expose a login or account-follow synchronization action in Web.
+
+- GET /platform-endpoints -> {items:[{platform,label,default_url,custom_url:string|null,enabled:bool,effective_url,description}]}
+- PUT /platform-endpoints/{platform} {custom_url:string|null,enabled:bool} -> the updated item. Web uses its existing administrator cookie. Each write updates one platform only; no revision field is used.
+
+Defaults: Pixiv `https://app-api.pixiv.net`, PicACG `https://picaapi.picacomic.com`, E-Hentai `https://api.e-hentai.org/api.php`, JM `https://18comic.vip`, Kemono `https://kemono.cr/api/v1`. Custom endpoints require public HTTPS and a compatible platform protocol. Requests stay server-side, and credentials required by that platform may be sent to its configured endpoint. Pixiv OAuth remains official. The library's own server URL and client binding do not change. Disabling an endpoint retains its custom URL; Web's restore-default button clears the draft and requires saving to persist.
+
+Video files use existing Item types and Assets (`video/mp4`, `video/webm`, `video/quicktime`); mixed posts use article. The default file limit is 128 MiB and Kemono's per-work total limit is 512 MiB. Unsupported archives/embedded media fail body acquisition without claiming a complete download. Web uses a native video element with controls, inline playback and metadata preloading; the authenticated asset URL also supports original-file download. ReadingProgress.page identifies the asset, section is 0, and offset is a 0..1 playback fraction. Initial metadata/seek restoration and media errors do not overwrite prior progress with 0. Mixed-file navigation crosses text section boundaries and remembers each file's position during the open reader session. Supported video encoding depends on the browser.
 
 ### Platform login and proxy settings
 - Source account responses also include `auth_status: verified|unverified`, `verified_at: ISO UTC|null`; advanced `/accounts` never claims verified. Successful login stores only encrypted issued sessions, never submitted passwords.
@@ -167,18 +180,18 @@ App 主导航使用原生 Drawer，顶部保留搜索。已下载模式在搜索
 
 管理员 cookie 专用 `GET/PUT /api/sources/pixiv/account-roles`。PUT 参数 `{enabled, main_account_id, content_account_ids:string[]}`，副账号数组不设数量配额；兼容旧 `content_account_id` 参数，读取旧加密配置时规范化为单元素数组。复数参数优先，兼容输出的单数始终等于首项或 null。GET 还返回 main、content、contents 的 `{id,label,status,verified_at}` 状态（verified／unverified／missing／unconfigured），以及 download_accounts（全部已保存的 Pixiv 账号和失效配置引用），附 in_pool/running/completed/failed 统计。统计只按分配给该账号的当前任务状态汇总，不暴露凭据或任务 payload。设备 Bearer 不能读写账号配置，带管理员 cookie 也不能提升 Bearer 权限；既有 Origin 校验继续执行。
 
-配置以 NetworkSetting 的 pixiv_account_roles 键加密保存，沿用配置备份。启用需要一个主账号和至少一个不同副账号，拒绝重复 ID、同 refresh_token 以及已知相同 user_id；验证失败不覆盖已有分工。关闭时可清除已删除的账号引用以恢复旧选择。QueueControl.download_account_cursor 在迁移 f36ac740b51d 添加，参与领取事务锁；任务 payload.download_account_id 保存选中的副账号。选择最少运行任务的可用副账号，同负载依次轮换，自动暂停／重启／租约恢复保持分配，明确 POST retry 清除旧分配。移除的账号不接受新任务；已绑定任务不自动换号，重试可重新分配。配置损坏仍允许领取后明确失败，避免全队列无限等待。上游失败不会触发自动换号或主账号回退。
+配置以 NetworkSetting 的 pixiv_account_roles 键加密保存，沿用配置备份。启用需要一个主账号并为至少一种功能分配账号；主账号不能承担图片下载，可显式兼任作品详情／小说正文和作者资料。各功能池内拒绝重复 ID、同 refresh_token 以及已知相同 user_id，同一账号可跨功能勾选；验证失败不覆盖已有分工。关闭时可清除已删除的账号引用以恢复旧选择。QueueControl.download_account_cursor 在迁移 f36ac740b51d 添加，参与领取事务锁；任务 payload.download_account_id 保存选中的副账号。选择最少运行任务的可用副账号，同负载依次轮换，自动暂停／重启／租约恢复保持分配，明确 POST retry 清除旧分配。移除的账号不接受新任务；已绑定任务不自动换号，重试可重新分配。配置损坏仍允许领取后明确失败，避免全队列无限等待。上游失败不会触发自动换号或主账号回退。
 
-jobs.account_credentials 使用 purpose=metadata|content。启用后 Pixiv 的 import、source_sync、series_sync、author_profile／author_feed 资料阶段使用 main；组合 import 和旧 import_content 正文阶段使用已分配的下载副账号，并验证其仍在配置中。其他平台保留原行为。长请求使用开始时解析的凭据，正文失败不追加主账号下载尝试。新建关注订阅记录实际主账号。分工开启时正文导入不覆盖原来源标签或分级，原有标题／作者保留逻辑继续适用。
+jobs.account_credentials 按请求用途路由：metadata 使用主账号检索作品、同步关注及作者作品／收藏／系列目录；checks 使用作者资料账号读取指定作者主页／账号资料，当前账号 me 的身份资料仍使用主账号；details 使用作品内容账号读取作品详情、预览封面及小说正文；content 使用图片下载账号获取原图。组合 import 和旧 import_content 也按内容类型选择功能池，并验证已分配账号仍在配置中。其他平台保留原行为。长请求使用开始时解析的凭据，失败不追加主账号尝试。新建关注订阅记录实际主账号。分工开启时图片下载阶段不覆盖资料阶段的原来源标签或分级，原有标题／作者保留逻辑继续适用。
 
-作者范围 API 以主账号计算账户 scope，既有作者任务必须与当前主账号绑定一致才执行，否则提示重新获取；绝不把原副账号／旧主账号的私密目录重标为新身份。所有远端访问仍由 Pixiv 自身权限约束。正文阶段会以副账号读取下载必需的作品详情、原图目录或小说正文，未承诺副账号仅发送原图字节请求。
+作者范围 API 以主账号计算账户 scope，既有作者任务必须与当前主账号绑定一致才执行，否则提示重新获取；绝不把原副账号／旧主账号的私密目录重标为新身份。所有远端访问仍由 Pixiv 自身权限约束。图片下载阶段会以下载账号读取取得原图地址及校验权限所需的作品详情／原图目录，未承诺下载账号仅发送原图字节请求；小说正文由作品内容账号获取。
 
 
 ## Pixiv 合并下载任务
 
 Pixiv 的 import 且 download=true（含省略）的任务在一个租约内完成详情和完整正文，成功后一起提交，不再派生 import_content。已有作者／系列目录、订阅只建档及补封面路径保持 download=false。其他平台仍走原两阶段流程。旧已排队的 Pixiv import_content 继续兼容执行，不批量取消用户任务。
 
-单账号直接调用 fetch(download=true)，只读取一次作品详情，再取所有原图或小说正文。启用主副账号时，主账号 fetch(download=false, include_preview=false) 只读取资料，不另取预览封面；副账号按自身权限 fetch(download=true)。这不代表副账号可以省略其所需的作品权限／原图目录请求。副账号失败不回退到主账号。
+单账号直接调用 fetch(download=true)，只读取一次作品详情，再取所有原图或小说正文。启用账号分工时，图片作品由作品内容账号 fetch(download=false, include_preview=false) 读取资料，再由图片下载账号按自身权限 fetch(download=true) 获取原图；小说由作品内容账号同时读取详情与正文。下载账号仍需发起取得原图地址及校验权限所需的请求。未配置对应功能或账号失败时不回退到主账号。
 
 完整性及来源 ID 校验后合并资料、原文件、标签和分级，在同一数据库事务提交。用户人工标题、标签、分级保持；缺页、无正文或取消不发布新条目；已有预览与资料不丢弃。导入事务内不通过独立会话写心跳，以免 SQLite 交叉会话锁等待，提交时仍校验任务租约与暂停／取消状态。原文件先校验写入，未提交引用的文件仍是可回收的孤立 blob，备份一致性规则不变。
 
@@ -197,9 +210,9 @@ QueueControl.lanes JSON 持久化六类队列的 paused/concurrency：download�
 
 GET /api/queue/status 保留旧字段，新增 lanes[{id,label,paused,concurrency,blocked_by_master,counts}]。PUT /api/queue/lanes/{id} 接受严格布尔 paused、严格整数 concurrency(1–8) 的部分更新。GET /api/jobs?queue={id} 在取最近 200 条前筛选队列；Job 安全输出增加 queue，仍不返回 payload。旧 PUT /api/queue/settings concurrency 兼容为统一设置三个网络队列的上限，不代表三队列合计上限；paused 仍为网络采集总开关。本地 AI／汉化由自身开关控制，提交前也检查暂停。
 
-Pixiv roles PUT 增加 detail_account_ids、check_account_ids 与 account_limits:{account_id:1..8}。账号可多选功能，详情和检查空池回退主账号，下载不回退主账号。account_limits 默认 2，覆盖该账号所有并行任务；一个任务同一账号承担多个功能只占一格，多账号各占一格，领取时保守占用至任务结束。未开启分工时原选中账号也受账号并发限制。旧客户端省略新增字段时保留已有配置；损坏配置可用合法配置替换。
+Pixiv roles PUT 增加 detail_account_ids、check_account_ids 与 account_limits:{account_id:1..8}。账号可多选图片下载、作品详情／小说正文、作者资料功能，各功能空池均不自动回退主账号；需要主账号兼任详情或作者资料时必须显式勾选。account_limits 默认 2，覆盖该账号所有并行任务；一个任务同一账号承担多个功能只占一格，多账号各占一格，领取时保守占用至任务结束。未开启分工时原选中账号也受账号并发限制。旧客户端省略新增字段时保留已有配置；损坏配置可用合法配置替换。
 
-任务 payload 分别持久化 download_account_id/details_account_id/check_account_id，未开启分工时保存 execution_account_id。暂停／重启不重分配；明确 retry 清除这些字段。排除已饱和身份后再取候选，避免大量等待任务阻塞其他平台。账号统计按每任务／账号去重，并包含所有功能的运行／完成／失败状态。凭据路由 purpose 扩展为 details/checks，metadata 保留主账号身份路由；公开作者／系列／订阅使用检查池，关注与私密目录固定主账号，旧主账号目录 scope 校验保留。
+任务 payload 分别持久化 download_account_id/details_account_id/check_account_id，未开启分工时保存 execution_account_id。暂停／重启不重分配；明确 retry 清除这些字段。排除已饱和身份后再取候选，避免大量等待任务阻塞其他平台。账号统计按每任务／账号去重，并包含所有功能的运行／完成／失败状态。凭据路由 purpose=details 用于作品详情与小说正文，checks 用于指定作者主页资料，metadata 用于主账号检索和目录同步（含公开作者作品、收藏、系列、订阅及关注）；me 的自身资料也固定主账号。旧主账号目录 scope 校验保留。
 
 Pixiv 作者订阅新增时未显式指定 content_scope 则使用 all；其他订阅默认 images，显式选择仍尊重。关注同步产生的作者同样使用 all。本次维护将现有 594 条 Pixiv 作者订阅启用并改为 all，不改变 auto_download、账号、周期与目标。
 
@@ -235,7 +248,9 @@ LibraryScreen 打开详情后不再在 pop 时重新 GET /items；详情的读�
 
 迁移 c86fe430a912 在 b58ce962d713 后增加 favorite_groups、item_favorites、favorite_group_items、item_visits 四表，以及 items.user_score(默认0)、items.source_bookmark_count(可空)。迁移仅首次创建「想看、在看、已看、推荐」四组，删除后不自动重建。单管理员书库内共享数据，不调用远端平台收藏接口。
 
-GET /favorite-groups 返回 items 分组数组、总收藏数和未分组数。POST 同路径创建、PUT /favorite-groups/{id} 重命名、DELETE 同路径仅删除分组及其关联，保留作品收藏。名称规范化、去除首尾空白，最长80字符、唯一。PUT /items/{id}/favorite 接受严格布尔 favorite、可选 group_ids(多选)及严格整数 score(0–5)。省略 group_ids 保留已有分组，[] 为未分组；取消收藏清理关联但保留评分。无效分组和评分整体拒绝，不部分保存。行锁与主键保护重复请求和并发更新。
+GET /favorite-groups 返回 items 分组数组、总收藏数和未分组数。POST 同路径创建、PUT /favorite-groups/{id} 重命名、DELETE 同路径仅删除分组及其关联，保留作品收藏。名称规范化、去除首尾空白，最长80字符、唯一。PUT /items/{id}/favorite 接受严格布尔 favorite、可选 group_ids(多选)。省略 group_ids 保留已有分组，[] 为未分组；取消收藏清理关联但保留评分。旧客户端发送的可选 score(严格整数0–5)仍兼容，无效分组和评分整体拒绝，不部分保存。新版 Web/App 收藏请求不发送 score，收藏编辑器不显示评分。行锁与主键保护重复请求和并发更新。
+
+PUT /items/{id}/score 接受必填严格整数 score(0–5)，0 为清除，返回 {id,user_score}，仅更新评分。未收藏作品也可评分，不创建收藏或修改分组。Web/App 提供独立评分入口，保存结果仅合并对应字段；失败保留原数据和输入，允许重试。手机 Bearer 允许该精确 PUT 路径，不扩展任意作品写入权限；旧 App 可继续连接新版服务器。无需数据库迁移。
 
 GET /items 新增 favorite=true、favorite_group={id|ungrouped}、history=true，可组合原有搜索／平台／类型／已下载条件与分页。历史以 viewed_at 降序和 item.id 排序；POST /items/{id}/visit 对同一作品更新一条最近访问记录，DELETE /history 清空记录而不影响阅读位置、收藏及原文件。作品删除通过外键级联清理收藏和历史。详情视图新增 is_favorite、favorite_group_ids、user_score、source_bookmark_count。
 

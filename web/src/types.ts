@@ -20,10 +20,12 @@ export interface Item {
   progress?: ReadingProgress | null; assets?: Asset[];
   remote_page_count?: number | null; source_series?: {remote_id: string; title: string; kind: 'novel' | 'manga'} | null; series?: SeriesSummary[];
 }
+export type ItemPreferencePatch = Pick<Item, 'id'> & Partial<Pick<Item, 'is_favorite' | 'favorite_group_ids' | 'user_score'>>
 export interface Dashboard {total_items: number; total_pages: number; total_bytes: number; pending_jobs: number; untagged_items: number; recent_items: Item[]; source_counts: Record<string, number>; rating_counts: Record<string, number>}
 export interface Job {queue?: string; id: string; kind: string; label?: string | null; status: string; progress: number; error?: string; item_id?: string | null; created_at: string; updated_at: string; result?: Record<string, unknown>}
 export interface SourceAccount {id: string; label: string; auth_status?: string; verified_at?: string | null}
 export interface Source {platform: string; label: string; status: string; capabilities: {key: string; label: string; status: string}[]; accounts: SourceAccount[]; message?: string}
+export interface PlatformEndpoint {platform: string; label: string; default_url: string; custom_url: string | null; enabled: boolean; effective_url: string; description: string}
 export interface Subscription {id: string; platform: string; target_type: string; target: string; label: string; enabled: boolean; auto_download: boolean; content_scope?: ContentScope; last_checked_at?: string; last_error?: string; account_id?: string; interval_minutes?: number; next_check_at?: string; runtime_status?: string; status_message?: string}
 export interface AIStatus {
   available: boolean; models: {id: string; label: string; available: boolean; message?: string}[]; message: string;
@@ -43,7 +45,8 @@ export interface Settings {storage_root: string; import_root: string; database_k
 export interface Collection {source: string; name: string; storage_directory: string; item_count: number; page_count: number; size_bytes: number; saved_item_count: number; metadata_item_count: number; legacy_asset_count: number}
 
 export const typeLabels: Record<string, string> = {manga: '漫画', illustration: '画集', novel: '小说', article: '文章'}
-export const sourceLabels: Record<string, string> = {local: '本地导入', pixiv: 'Pixiv', ehentai: 'E-Hentai', picacg: '哔咔 PicACG', jm: 'JM 漫画'}
+export const remotePlatforms = ['pixiv', 'ehentai', 'picacg', 'jm', 'kemono'] as const
+export const sourceLabels: Record<string, string> = {local: '本地导入', pixiv: 'Pixiv', ehentai: 'E-Hentai', picacg: '哔咔 PicACG', jm: 'JM 漫画', kemono: 'Kemono'}
 export const ratingLabels: Record<string, string> = {unknown: '待分级', general: '普通', sensitive: '敏感', adult: 'R18'}
 export const jobStatusLabels: Record<string, string> = {queued: '排队中', running: '处理中', completed: '已完成', failed: '失败', cancelled: '已取消'}
 export const jobKindLabels: Record<string, string> = {import: '封面与基本信息', import_content: '正文下载', source_sync: '同步关注内容', series_sync: '获取系列目录', ai: 'AI 整理', translate: '标题与标签汉化', author_profile: '作者主页资料', author_feed: '作者作品／收藏目录'}

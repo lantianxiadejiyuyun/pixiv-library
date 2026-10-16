@@ -47,7 +47,7 @@ def test_same_source_deduplicates_but_each_collection_has_separate_files(client)
             assert first.relative_path == second.relative_path
             assert first.relative_path.startswith(f"collections/{source}/blobs/")
             paths.append(resolve_asset_path(first.relative_path))
-    assert len(set(paths)) == 5
+    assert len(set(paths)) == len(COLLECTIONS)
     assert all(path.read_bytes() == png() for path in paths)
     assert not any(paths[0].samefile(path) for path in paths[1:])
     with pytest.raises(ValueError, match="来源"):

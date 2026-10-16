@@ -13,8 +13,51 @@ from app.models import SourceAccount
 from app.source_auth import SourceLoginError
 
 
+@pytest.fixture(autouse=True)
+def endpoint_settings(client):
+    # Login now reads the same persisted endpoint configuration as downloads.
+    pass
+
+
 def transport(monkeypatch, handler):
     monkeypatch.setattr(source_auth, "_client", lambda: httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=False))
+
+
+@pytest.mark.parametrize('platform,url', [('picacg', 'https://mirror.example.org/pica'), ('jm', 'https://mirror.example.org')])
+def test_login_uses_selected_api_without_forwarding_credentials_on_redirect(client, monkeypatch, platform, url):
+    from app import endpoint_config
+    monkeypatch.setattr(endpoint_config, 'public_dns', lambda host: None)
+    client.put('/api/platform-endpoints/' + platform, json={'enabled': True, 'custom_url': url}).raise_for_status()
+    seen = []
+    def handler(request):
+        seen.append(request)
+        assert str(request.url).startswith(url + '/')
+        if platform == 'jm':
+            assert request.headers['origin'] == url
+        return httpx.Response(302, headers={'location': 'https://unselected.example.org/collect'})
+    transport(monkeypatch, handler)
+    with pytest.raises(SourceLoginError, match='跳转'):
+        source_auth.login_platform(platform, 'synthetic-user', 'synthetic-password')
+    assert len(seen) == 1
+
+
+def test_picacg_custom_login_profile_uses_same_endpoint_and_protocol_signature(client, monkeypatch):
+    from app import endpoint_config
+    monkeypatch.setattr(endpoint_config, 'public_dns', lambda host: None)
+    client.put('/api/platform-endpoints/picacg', json={'enabled': True, 'custom_url': 'https://mirror.example.org/pica'}).raise_for_status()
+    seen = []
+    def handler(request):
+        seen.append(request)
+        assert request.url.host == 'mirror.example.org'
+        assert request.headers['signature']
+        if request.url.path == '/pica/auth/sign-in':
+            return httpx.Response(200, json={'code': 200, 'data': {'token': 'issued-test'}})
+        assert request.url.path == '/pica/users/profile'
+        assert request.headers['authorization'] == 'issued-test'
+        return httpx.Response(200, json={'code': 200, 'data': {'user': {'_id': 'test-user'}}})
+    transport(monkeypatch, handler)
+    assert source_auth.login_picacg('synthetic-user', 'synthetic-password') == {'token': 'issued-test'}
+    assert len(seen) == 2
 
 
 def test_picacg_login_validates_profile_and_only_persists_returned_token(client, monkeypatch):

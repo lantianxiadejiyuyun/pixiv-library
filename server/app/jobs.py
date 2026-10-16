@@ -148,12 +148,18 @@ def account_credentials(db, platform, account_id=None, *, purpose="metadata", pi
 def pixiv_account_label(db, payload, *, content=False):
     """Resolve the actual identity while the initial short read txn is open."""
     from .pixiv_accounts import resolve_account_id
-    field, purpose = ("download_account_id", "content") if content else ("details_account_id", "details")
+    field, purpose = pixiv_body_role(payload) if content else ("details_account_id", "details")
     requested = payload.get(field) or payload.get("execution_account_id") or payload.get("account_id")
     ident = resolve_account_id(db, requested, purpose=purpose, pinned=bool(payload.get(field)))
     account = db.get(SourceAccount, ident) if ident else db.scalar(select(SourceAccount).where(SourceAccount.platform == "pixiv").order_by(SourceAccount.created_at))
     label = " ".join(account.label.split())[:80] if account else ""
-    return f"Pixiv {'下载' if content else '详情'}账号" + (f"「{label}」" if label else "")
+    stage = "图片下载" if purpose == "content" else "作品详情与正文"
+    return f"Pixiv {stage}账号" + (f"「{label}」" if label else "")
+
+
+def pixiv_body_role(payload):
+    from .pixiv_accounts import is_novel_payload
+    return ("details_account_id", "details") if is_novel_payload(payload) else ("download_account_id", "content")
 
 
 @contextmanager
@@ -289,17 +295,18 @@ def _import(db, payload, report, guard, job_id=None):
 def _import_pixiv(db, payload, report, guard, job_id):
     """One job, one final commit: Pixiv details and complete body together.
 
-    Split identities remain explicit. A secondary may need its own detail call
-    for download permissions; discovery metadata is never committed as a first
-    phase and no follow-up content job is created.
+    Novel metadata and text use the work-details identity in one fetch. Images
+    use the download identity (including its permission/detail request), while
+    the work-details identity supplies metadata. No follow-up job is created.
     """
     from .pixiv_accounts import read_config
     from .library import import_files
     split = read_config(db)["enabled"]
-    content = get_connector("pixiv", account_credentials(db, "pixiv", payload.get("download_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
-                            purpose="content", pinned=bool(payload.get("download_account_id"))))
+    field, purpose = pixiv_body_role(payload)
+    content = get_connector("pixiv", account_credentials(db, "pixiv", payload.get(field) or payload.get("execution_account_id") or payload.get("account_id"),
+                            purpose=purpose, pinned=bool(payload.get(field))))
     metadata = get_connector("pixiv", account_credentials(db, "pixiv", payload.get("details_account_id") or payload.get("account_id"),
-                             purpose="details", pinned=bool(payload.get("details_account_id")))) if split else None
+                             purpose="details", pinned=bool(payload.get("details_account_id")))) if split and purpose == "content" else None
     if payload.get("details_account_id") and payload.get("details_account_id") == payload.get("download_account_id"):
         metadata = None  # The same identity returns both in one fetch.
     split = metadata is not None
@@ -362,8 +369,9 @@ def _import_content(db, payload, report, guard):
         return {"skipped": True, "message": "作品已删除，正文任务已跳过"}
     from .pixiv_accounts import read_config
     split_accounts = platform == "pixiv" and read_config(db)["enabled"]
-    connector = get_connector(platform, account_credentials(db, platform, payload.get("download_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
-                              purpose="content", pinned=bool(payload.get("download_account_id"))))
+    field, purpose = pixiv_body_role(payload) if platform == "pixiv" else ("download_account_id", "content")
+    connector = get_connector(platform, account_credentials(db, platform, payload.get(field) or payload.get("execution_account_id") or payload.get("account_id"),
+                              purpose=purpose, pinned=bool(payload.get(field))))
     stage_label = pixiv_account_label(db, payload, content=True) if platform == "pixiv" else None
     ident = connector.normalize_id(payload["remote_id"])
     existing = db.scalar(select(Item).where(Item.source == platform, Item.source_id == ident))
@@ -400,7 +408,7 @@ def _sync(db, payload, report, guard):
         from .pixiv_accounts import resolve_account_id
         payload = {**payload, "account_id": resolve_account_id(db, payload.get("account_id"))}
     connector = get_connector(platform, account_credentials(db, platform, payload.get("check_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
-                              purpose="checks" if platform == "pixiv" else "metadata", pinned=bool(payload.get("check_account_id"))))
+                              purpose="metadata", pinned=bool(payload.get("check_account_id"))))
     db.commit()
     if payload.get("subscription_id"):
         subscription = db.get(Subscription, payload["subscription_id"])

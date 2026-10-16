@@ -5,15 +5,9 @@ import 'package:flutter/services.dart';
 import 'api.dart';
 import 'api_image.dart';
 import 'models.dart';
+import 'source_labels.dart';
 
-const _sources = {
-  '': '全部书库',
-  'pixiv': 'Pixiv',
-  'ehentai': 'E-Hentai',
-  'picacg': '哔咔',
-  'jm': 'JM 天堂',
-  'local': '本地书库',
-};
+const _sources = librarySources;
 String _message(Object e) => e is ApiFailure ? e.message : '无法读取人物资料，请重试';
 String _sourceURL(dynamic value) =>
     value is String &&

@@ -98,7 +98,7 @@ def test_one_account_budget_shared_across_roles_and_live_limit_drain(client, acc
     configure(client, accounts)
     queue_control.update_settings({'concurrency': 4})
     first = add('import', {'platform': 'pixiv', 'remote_id': '10'})
-    second = add('source_sync', {'platform': 'pixiv', 'subscription_id': 'synthetic'})
+    second = add('author_profile', {'target': '12345', 'account_id': accounts['main']})
     third = add('import', {'platform': 'pixiv', 'remote_id': '11', 'download': False})
     assert jobs.run_once()
     with SessionLocal() as db:
@@ -167,7 +167,7 @@ def test_limits_validate_and_roles_can_be_multiselected_without_downloads(client
 @pytest.mark.parametrize('kind', ['import', 'source_sync'])
 def test_full_pixiv_account_does_not_hide_other_platform_after_large_backlog(client, accounts, monkeypatch, kind):
     hold(monkeypatch)
-    configure(client, accounts, account_limits={accounts['content']: 1})
+    configure(client, accounts, account_limits={accounts['content']: 1, accounts['main']: 1})
     queue_control.update_settings({'concurrency': 3})
     payload = {'platform': 'pixiv', 'download': False, 'subscription_id': 'synthetic'}
     add(kind, payload)
@@ -207,7 +207,7 @@ def test_assigned_secondary_really_parses_details_downloads_and_checks_author(cl
     details = add('import', {'platform': 'pixiv', 'remote_id': '88001235', 'download': False})
     assert jobs.run_once()
     assert client.get('/api/jobs/'+details).json()['status'] == 'completed'
-    assert seen == [('content-test', 'download'), ('content-test', 'checks'), ('content-test', 'details')]
+    assert seen == [('content-test', 'download'), ('main-test', 'checks'), ('content-test', 'details')]
 
 
 def test_author_retry_clears_role_assignment_for_fresh_selection(client, accounts):

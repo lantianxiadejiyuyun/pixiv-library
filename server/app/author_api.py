@@ -196,10 +196,11 @@ def request_feed(author_id: str, value: FeedInput, db=Depends(get_db)):
 
 def sync_profile(db, payload, report, guard):
     from .jobs import account_credentials
-    # Validate the directory owner before using an assigned public-check account.
+    # Validate the directory owner before using an assigned author-profile account.
     original = account_credentials(db, "pixiv", payload["account_id"], pinned=True)
     assigned = payload.get("check_account_id") or payload.get("execution_account_id")
-    credentials = account_credentials(db, "pixiv", assigned, purpose="checks", pinned=True) if assigned else original
+    purpose = "metadata" if str(payload["target"]).lower() == "me" else "checks"
+    credentials = account_credentials(db, "pixiv", assigned or payload["account_id"], purpose=purpose, pinned=bool(assigned))
     connector = get_connector("pixiv", credentials)
     db.commit()
     data = connector.fetch_author(payload["target"], checkpoint=report)
@@ -245,7 +246,7 @@ def sync_feed(db, payload, report, guard):
     assigned = payload.get("check_account_id") or payload.get("execution_account_id")
     if restrict == "private" and assigned and assigned != payload["account_id"]:
         raise ConnectorError("私密收藏必须由原账号读取，请重试任务")
-    connector = get_connector("pixiv", account_credentials(db, "pixiv", assigned, purpose="checks", pinned=True) if assigned else original)
+    connector = get_connector("pixiv", account_credentials(db, "pixiv", assigned, purpose="metadata", pinned=True) if assigned else original)
     db.commit()
     works = []
     # Bookmark image endpoints mix illustration and manga. Advance through at
