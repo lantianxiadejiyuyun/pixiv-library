@@ -5,7 +5,7 @@ const {parse,compileScript} = require('@vue/compiler-sfc')
 const source = compileScript(parse(fs.readFileSync(path.join(__dirname,'../src/components/DownloadQueue.vue'),'utf8')).descriptor,{id:'pacing'}).content
 function harness({failure=false,initial={}}={}) {
   const calls=[]
-  const lanes=[{id:'download',label:'内容下载',paused:false,concurrency:2,counts:{queued:4,running:1,failed:0,completed:0}},{id:'ai',label:'AI 识别',paused:false,concurrency:1,counts:{queued:1,running:0,failed:0,completed:0}}]
+  const lanes=[{id:'download',label:'内容下载',paused:false,concurrency:2,counts:{queued:4,running:1,failed:0,completed:0}},{id:'ai',label:'AI 识别',paused:false,concurrency:1,counts:{queued:1,running:0,failed:0,completed:0}},{id:'retry',label:'失败重试',paused:false,blocked_by_master:false,concurrency:1,counts:{queued:2,running:0,failed:0,completed:0}}]
   let settings={paused:true,rate_limit_enabled:true,min_interval_seconds:2,max_interval_seconds:5,concurrency:1,...initial}
   const imports={vue:{...Vue,onMounted(){},onBeforeUnmount(){}},'lucide-vue-next':{},'../types':{},'../api':{errorMessage:e=>e.message,api:async (url,options={})=>{
     calls.push({url,...options})
@@ -137,4 +137,36 @@ test('兼容没有进程信息的旧响应，不影响队列设置',async()=>{
   assert.equal(h.state.workerLabel('download'),'')
   h.state.concurrency.value=3;await h.state.save('concurrency')
   assert.equal(h.state.state.value.settings.concurrency,3)
+})
+
+test('采集暂停提示只显示在被阻止的任务上，手动队列只遵守自身暂停',async()=>{
+  const h=harness();await h.state.load()
+  h.state.state.value.lanes=[
+    {id:'manual_download',paused:false,blocked_by_master:false},
+    {id:'download',paused:false,blocked_by_master:true}
+  ]
+  assert.equal(h.state.pauseMessage({queue:'manual_download'}),'')
+  assert.match(h.state.pauseMessage({queue:'download'}),/采集已暂停/)
+  h.state.state.value.lanes[0].paused=true
+  assert.match(h.state.pauseMessage({queue:'manual_download'}),/本队列已暂停/)
+})
+
+
+test('重试队列独立保存并发与暂停，采集暂停不阻止重试',async()=>{
+  const h=harness();await h.state.load()
+  const lane=h.state.state.value.lanes.find(row=>row.id==='retry')
+  assert.equal(h.state.pauseMessage({queue:'retry'}),'')
+  h.state.laneLimits.value.retry=3;h.state.dirtyLanes.add('retry')
+  await h.state.saveLane(lane);await h.state.load(true)
+  assert.equal(h.state.state.value.settings.paused,true)
+  assert.equal(h.state.laneLimits.value.download,2)
+  assert.equal(h.state.laneLimits.value.retry,3)
+  await h.state.saveLane(h.state.state.value.lanes.find(row=>row.id==='retry'),true)
+  await h.state.load(true)
+  assert.match(h.state.pauseMessage({queue:'retry'}),/本队列已暂停/)
+  const writes=h.calls.filter(c=>c.method)
+  assert.equal(writes.length,2)
+  assert(writes.every(row=>row.url==='/queue/lanes/retry'))
+  assert.deepEqual(JSON.parse(writes[0].body),{concurrency:3})
+  assert.deepEqual(JSON.parse(writes[1].body),{paused:true})
 })

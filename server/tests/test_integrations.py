@@ -83,9 +83,10 @@ class FakeConnector:
     def fetch(self, value, *, download=True, checkpoint=lambda value: None):
         checkpoint(50)
         return RemoteWork(remote_id=value, title="实际持久任务", source_url="https://www.pixiv.net/artworks/123",
-                          item_type="article", tags=["来源标签"], files=[("正文.txt", "编程算法".encode())] if download else [], metadata_only=not download)
+                          item_type="article", tags=["来源标签"], files=[("正文.txt", "编程算法".encode())] if download else [], metadata_only=not download,
+                          is_bookmarked=False)
 
-    def discover(self, target_type, target, content_scope="images"):
+    def discover(self, target_type, target, content_scope="images", **kwargs):
         return ["123", "123", "456"], True
 
     def follows(self, checkpoint=lambda value: None):

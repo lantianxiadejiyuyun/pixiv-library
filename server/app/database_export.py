@@ -205,6 +205,9 @@ def write_mysql_dump(stream, database_engine=engine) -> None:
                 # protecting each captured table definition while rows stream.
                 cursor.execute(f"SELECT * FROM {sql_identifier(table)} LIMIT 0")
                 columns = [entry[0] for entry in cursor.description]
+                if table in Base.metadata.tables:
+                    generated = {column.name for column in Base.metadata.tables[table].columns if column.computed is not None}
+                    columns = [name for name in columns if name not in generated]
                 cursor.execute(f"SHOW CREATE TABLE {sql_identifier(table)}")
                 row = cursor.fetchone()
                 if not row or row[0] != table or not row[1].lstrip().upper().startswith("CREATE TABLE "):

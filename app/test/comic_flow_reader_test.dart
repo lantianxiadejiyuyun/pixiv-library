@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,36 @@ class MemoryPreferences extends ReaderPreferences {
   }
 }
 
+class DelayedReloadComicApi extends ComicApi {
+  Completer<Uint8List>? reload;
+  DelayedReloadComicApi(super.portrait, super.landscape);
+  @override
+  Future<Uint8List> image(String path) {
+    if (path == '/assets/comic-1/content' && reload != null) {
+      imageRequests.add(path);
+      return reload!.future;
+    }
+    return super.image(path);
+  }
+}
+
+class AlternatingComicApi extends ComicApi {
+  bool delayRevisits = false;
+  AlternatingComicApi(super.portrait, super.landscape);
+  @override
+  Future<Uint8List> image(String path) async {
+    final revisit = imageRequests.contains(path);
+    imageRequests.add(path);
+    if (delayRevisits && revisit) {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
+    final page = int.parse(
+      RegExp(r'comic-(\d+)/content').firstMatch(path)![1]!,
+    );
+    return page.isEven ? portrait : landscape;
+  }
+}
+
 Future<void> imagesSettle(WidgetTester tester) async {
   await tester.pump();
   await tester.runAsync(() async {
@@ -38,6 +69,159 @@ void main() {
   });
 
   testWidgets(
+    'returning from the bottom keeps the extent of visited mixed pages stable',
+    (tester) async {
+      final api = AlternatingComicApi(portrait, landscape);
+      await phone(
+        tester,
+        Scaffold(
+          body: ComicFlowReader(
+            api: api,
+            itemId: 'comic',
+            assets: LibraryItem.fromJson(
+              book(id: 'comic', image: true, count: 12),
+            ).assets,
+            initialPage: 0,
+            controller: ComicFlowController(),
+            onPosition: (_, _) {},
+          ),
+        ),
+      );
+      await imagesSettle(tester);
+      final scroll = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView))
+          .controller!;
+      for (var i = 0; i < 20; i++) {
+        final next = (scroll.offset + 300).clamp(
+          0.0,
+          scroll.position.maxScrollExtent,
+        );
+        scroll.jumpTo(next);
+        await imagesSettle(tester);
+      }
+      expect(api.imageRequests.toSet().length, 12);
+      expect(scroll.position.extentAfter, closeTo(0, .1));
+      final end = scroll.position.maxScrollExtent;
+      for (var i = 0; i < 10; i++) {
+        final target = scroll.offset - 120;
+        scroll.jumpTo(target);
+        await imagesSettle(tester);
+        expect(
+          scroll.position.maxScrollExtent,
+          closeTo(end, .1),
+          reason: 'Returning step $i must not change the bottom',
+        );
+        expect(scroll.offset, closeTo(target, .1));
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    testWidgets(
+      'repeated bottom reversal with delayed recycled images on $platform',
+      (tester) async {
+        final api = AlternatingComicApi(portrait, landscape);
+        var current = 6;
+        await phone(
+          tester,
+          Theme(
+            data: ThemeData(platform: platform),
+            child: Scaffold(
+              body: ComicFlowReader(
+                api: api,
+                itemId: 'comic',
+                assets: LibraryItem.fromJson(
+                  book(id: 'comic', image: true, count: 18),
+                ).assets,
+                initialPage: 6,
+                controller: ComicFlowController(),
+                onPosition: (page, _) => current = page,
+              ),
+            ),
+          ),
+        );
+        await imagesSettle(tester);
+        final view = find.byType(CustomScrollView);
+        final scroll = tester.widget<CustomScrollView>(view).controller!;
+        for (var i = 0; i < 30; i++) {
+          scroll.jumpTo(
+            (scroll.offset + 250).clamp(0.0, scroll.position.maxScrollExtent),
+          );
+          await imagesSettle(tester);
+        }
+        expect(api.imageRequests, contains('/assets/comic-17/content'));
+        expect(scroll.position.extentAfter, closeTo(0, .1));
+        final end = scroll.position.maxScrollExtent;
+        api.delayRevisits = true;
+        for (var round = 0; round < 3; round++) {
+          // Overscroll at the bottom, then reverse the gesture while images that
+          // were disposed below/above the cache boundary are being recreated.
+          await tester.drag(view, const Offset(0, -180));
+          await imagesSettle(tester);
+          for (var step = 0; step < 3; step++) {
+            final previous = scroll.offset;
+            await tester.drag(view, const Offset(0, 180));
+            await imagesSettle(tester);
+            expect(scroll.offset, lessThan(previous));
+            expect(scroll.position.maxScrollExtent, closeTo(end, .1));
+          }
+          expect(current, lessThan(16));
+          scroll.jumpTo(end);
+          await imagesSettle(tester);
+          expect(scroll.position.extentAfter, closeTo(0, .1));
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets(
+    'recycled landscape page keeps its height while cached bytes reload',
+    (tester) async {
+      final api = DelayedReloadComicApi(portrait, landscape);
+      final controller = ComicFlowController();
+      await phone(
+        tester,
+        Scaffold(
+          body: ComicFlowReader(
+            api: api,
+            itemId: 'comic',
+            assets: LibraryItem.fromJson(
+              book(id: 'comic', image: true, count: 40),
+            ).assets,
+            initialPage: 0,
+            controller: controller,
+            onPosition: (_, _) {},
+          ),
+        ),
+      );
+      await imagesSettle(tester);
+      final page = find.byKey(const ValueKey('comic-1'));
+      expect(tester.getSize(page).height, closeTo(195, .01));
+      final scroll = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView))
+          .controller!;
+      scroll.jumpTo(5000);
+      await imagesSettle(tester);
+      expect(page, findsNothing);
+      api.reload = Completer<Uint8List>();
+      scroll.jumpTo(560);
+      await tester.pump();
+      expect(tester.getSize(page).height, closeTo(195, .01));
+      final offset = scroll.offset;
+      api.reload!.complete(landscape);
+      await imagesSettle(tester);
+      expect(tester.getSize(page).height, closeTo(195, .01));
+      expect(scroll.offset, closeTo(offset, .01));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
     'failed flow image retries independently without leaving reader',
     (tester) async {
       final api = ComicApi(portrait, landscape)
@@ -52,6 +236,8 @@ void main() {
       );
       expect(find.byTooltip('重新加载图片'), findsOneWidget);
       await tester.tap(find.byTooltip('重新加载图片'));
+      // The reader's double-tap gesture waits before accepting a single tap.
+      await tester.pump(const Duration(milliseconds: 350));
       await imagesSettle(tester);
       expect(find.byTooltip('重新加载图片'), findsNothing);
       expect(

@@ -26,6 +26,30 @@ test('账号页仅加载配置与独立统计，不自动启用或下载',async(
   assert.equal(h.state.form.enabled,false);assert.equal(h.state.accounts.value[1].running,2)
   assert.equal(h.state.dirty.value,false)
 })
+
+test('手动下载权限独立保存和筛选，不改动自动下载池',async()=>{
+  const h=harness();await h.state.load()
+  assert.deepEqual(Array.from(h.state.form.manual_account_ids),[])
+  h.state.form.enabled=true;h.state.form.manual_account_ids=['second']
+  h.state.functionFilter.value='manual'
+  assert.equal(h.state.roleCounts.value.manual,1)
+  assert.deepEqual(Array.from(h.state.filtered.value,row=>row.id),['second'])
+  await h.state.save()
+  const payload=JSON.parse(h.requests.find(r=>r.method==='PUT').body)
+  assert.deepEqual(payload.manual_account_ids,['second'])
+  assert.deepEqual(payload.content_account_ids,['first'])
+})
+
+test('仅授予手动下载也能启用分工，旧响应不隐式授予该权限',async()=>{
+  const h=harness();await h.state.load()
+  assert.equal(h.state.form.manual_account_ids.length,0)
+  h.state.form.enabled=true;h.state.form.content_account_ids=[];h.state.form.manual_account_ids=['second']
+  await h.state.save()
+  assert.equal(h.state.error.value,'')
+  const payload=JSON.parse(h.requests.find(r=>r.method==='PUT').body)
+  assert.deepEqual(payload.content_account_ids,[])
+  assert.deepEqual(payload.manual_account_ids,['second'])
+})
 test('账号数量不限制为并发数，保存全部副账号且不提交凭据',async()=>{
   const ids=Array.from({length:100},(_,index)=>`secondary-${index}`)
   const config={...original,download_accounts:[...original.download_accounts,...ids.map(id=>({id,label:id,status:'verified',running:0,completed:0,failed:0}))]}
@@ -37,7 +61,7 @@ test('账号数量不限制为并发数，保存全部副账号且不提交凭�
   assert.equal(writes.length,1)
   const payload=JSON.parse(writes[0].body)
   assert.equal(payload.content_account_ids.length,100)
-  assert.deepEqual(Object.keys(payload).sort(),['account_limits','check_account_ids','content_account_ids','detail_account_ids','enabled','main_account_id'])
+  assert.deepEqual(Object.keys(payload).sort(),['account_limits','check_account_ids','content_account_ids','detail_account_ids','enabled','main_account_id','manual_account_ids','retry_account_ids'])
   assert.equal(h.state.error.value,'')
 })
 
@@ -158,4 +182,42 @@ test('未分配的作品内容与作者资料功能保持空池，不自动填�
   assert.deepEqual(payload.detail_account_ids,[])
   assert.deepEqual(payload.check_account_ids,[])
   assert.deepEqual(payload.content_account_ids,['first'])
+})
+
+
+test('失败重试权限需显式勾选，可与原任务功能多选且独立保存筛选',async()=>{
+  const h=harness();await h.state.load()
+  assert.deepEqual(Array.from(h.state.form.retry_account_ids),[])
+  h.state.form.enabled=true;h.state.form.retry_account_ids=['first','second']
+  h.state.form.detail_account_ids=['second']
+  h.state.functionFilter.value='retry'
+  assert.equal(h.state.roleCounts.value.retry,2)
+  assert.deepEqual(Array.from(h.state.filtered.value,row=>row.id),['first','second'])
+  await h.state.save()
+  const payload=JSON.parse(h.requests.find(r=>r.method==='PUT').body)
+  assert.deepEqual(payload.retry_account_ids,['first','second'])
+  assert.deepEqual(payload.content_account_ids,['first'])
+  assert.deepEqual(payload.detail_account_ids,['second'])
+  assert.deepEqual(payload.manual_account_ids,[])
+})
+
+test('移除账号后清除重试权限，但保留仍有效的未保存选择',async()=>{
+  const config={...original,retry_account_ids:['first'],download_accounts:original.download_accounts}
+  const updated={...config,download_accounts:original.download_accounts.filter(row=>row.id!=='first')}
+  const h=harness({reads:[config,updated]});await h.state.load()
+  h.state.form.retry_account_ids=['first','second']
+  await h.state.load(true)
+  assert.deepEqual(Array.from(h.state.form.retry_account_ids),['second'])
+  assert.equal(h.state.roleCounts.value.retry,1)
+})
+
+test('重试权限本身不隐式授予下载详情或作者资料功能',async()=>{
+  const h=harness();await h.state.load()
+  h.state.form.enabled=true;h.state.form.content_account_ids=[];h.state.form.retry_account_ids=['second']
+  await h.state.save()
+  assert.equal(h.requests.filter(r=>r.method).length,0)
+  assert.match(h.state.error.value,/至少一种/)
+  assert.deepEqual(Array.from(h.state.form.manual_account_ids),[])
+  assert.deepEqual(Array.from(h.state.form.detail_account_ids),[])
+  assert.deepEqual(Array.from(h.state.form.check_account_ids),[])
 })

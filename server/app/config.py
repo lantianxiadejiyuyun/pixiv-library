@@ -32,8 +32,8 @@ class Settings:
         if not all(math.isfinite(v) for v in (self.request_interval_min_seconds, self.request_interval_max_seconds)) or not 0 <= self.request_interval_min_seconds <= self.request_interval_max_seconds <= 60:
             raise RuntimeError("Request intervals must satisfy 0 <= min <= max <= 60")
         if self.environment == "production":
-            if len(self.admin_password) < 12 or self.admin_password == "local-library":
-                raise RuntimeError("Production requires LIBRARY_ADMIN_PASSWORD of at least 12 characters")
+            if not 8 <= len(self.admin_password) <= 20 or self.admin_password == "local-library":
+                raise RuntimeError("Production requires LIBRARY_ADMIN_PASSWORD of 8 to 20 characters")
             if len(self.secret_key) < 32 or self.secret_key.startswith("development-only"):
                 raise RuntimeError("Production requires a unique LIBRARY_SECRET_KEY of at least 32 characters")
             if self.database_url.startswith("sqlite"):

@@ -26,6 +26,17 @@ function harness(handler) {
   const state = context.exports.default.setup({blurAdult: true}, {expose() {}, emit() {}})
   return {state, requests, unmount, timers}
 }
+
+test('作者作品和公开收藏开关独立保存；迟到保存不污染新作者', async () => {
+  const slow = deferred()
+  const h = harness((url, body) => url.endsWith('/download-settings') ? slow.promise : undefined)
+  h.state.authorId.value='20';h.state.profile.value={remote_id:'20',download_settings:{download_works:false,download_bookmarks:true,subscribed:true}}
+  const pending=h.state.saveDownloads('download_works')
+  assert.deepEqual(h.requests[0].body,{download_works:true,download_bookmarks:true})
+  h.state.authorId.value='21';h.state.profile.value={remote_id:'21',download_settings:{download_works:false,download_bookmarks:false}}
+  slow.resolve({download_works:true,download_bookmarks:true});await pending
+  assert.equal(h.state.profile.value.download_settings.download_works,false)
+})
 test('作者与收藏通过分类参数请求，不附带正文下载操作', async () => {
   const h = harness(); await h.state.open('10'); await Promise.resolve(); await Promise.resolve()
   h.state.section.value = 'bookmarks'; h.state.category.value = 'novel'; await h.state.change()

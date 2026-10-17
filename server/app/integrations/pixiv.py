@@ -9,9 +9,10 @@ from .base import Connector, ConnectorError, JobCancelled, RemoteWork, SafeHTTP,
 
 class PixivConnector(Connector):
     supports_import = supports_sync = supports_subscriptions = True
+    supports_watchlist = True
     MAX_SERIES_WORKS = 1000
     MAX_SERIES_PAGES = 50
-    message = "支持 Pixiv 官方网页登录授权、插画／漫画／小说、作者主页、分页收藏、关注作者及作者／标签订阅。私密收藏限本人账号；动图暂不支持。"
+    message = "同步主账号关注，检查作者作品和公开收藏的最新一页；详情与封面排队，不沿收藏作品扩展作者。私密收藏限本人，动图暂不支持。"
 
     def capabilities(self):
         return super().capabilities() + [{"key": "authors", "label": "作者主页", "status": "available"},
@@ -22,6 +23,8 @@ class PixivConnector(Connector):
             raise ConnectorError("Pixiv 需要 refresh_token；user_id 可选")
 
     def _api(self):
+        if hasattr(self, '_live_api'):
+            return self._live_api
         self.validate_credentials()
         try:
             from pixivpy3 import AppPixivAPI
@@ -35,8 +38,14 @@ class PixivConnector(Connector):
             pace_sdk_requests(api.requests, "send", cancellation_boundary=(api, "requests_call"),
                 rate_limit_message="Pixiv 请求受到限流（HTTP 429），已记录平台等待时间；请稍后重试，建议降低并发或开启请求限速")
             auth = api.auth(refresh_token=self.credentials["refresh_token"])
-            self._authenticated_user_id = str((auth.get("user") or {}).get("id") or "")
-            self._user_id = str(self.credentials.get("user_id") or auth.get("user", {}).get("id") or "")
+            # PixivPy returns OAuth's {response: {user: ...}} envelope.
+            # Never use the optional manually entered user_id as the owner.
+            token = auth.get("response") if isinstance(auth.get("response"), Mapping) else auth
+            user = token.get("user") or {}
+            identity = str(user.get("id") or getattr(api, "user_id", "") or "")
+            self._authenticated_user_id = identity if re.fullmatch(r"[1-9]\d{0,19}", identity) else ""
+            self._user_id = self._authenticated_user_id
+            self._live_api = api
             return api
         except ImportError as exc:
             raise ConnectorError("请安装 server/requirements.txt 中的 pixivpy3") from exc
@@ -164,6 +173,7 @@ class PixivConnector(Connector):
                 raise ConnectorError("Pixiv 系列目录包含其他系列的作品，未保存混合目录")
         author = work.get("user") or {}
         caption = work.get("caption") or ""
+        from app.source_dates import source_timestamp
         return RemoteWork(remote_id="novel:" + ident if novel else ident, title=work["title"],
             source_url=f"https://www.pixiv.net/novel/show.php?id={ident}" if novel else f"https://www.pixiv.net/artworks/{ident}",
             item_type="novel" if novel else ("manga" if work.get("type") == "manga" else "illustration"),
@@ -173,7 +183,9 @@ class PixivConnector(Connector):
             tags=[t["name"] for t in (work.get("tags") or []) if isinstance(t, Mapping) and isinstance(t.get("name"), str) and t["name"]],
             rating="adult" if work.get("x_restrict", 0) else "unknown", metadata_only=metadata_only,
             remote_page_count=count, source_series=dict(source_series) if source_series else None,
-            bookmark_count=work.get("total_bookmarks") if type(work.get("total_bookmarks")) is int and 0 <= work["total_bookmarks"] <= 9223372036854775807 else None)
+            bookmark_count=work.get("total_bookmarks") if type(work.get("total_bookmarks")) is int and 0 <= work["total_bookmarks"] <= 9223372036854775807 else None,
+            is_bookmarked=work.get("is_bookmarked") if type(work.get("is_bookmarked")) is bool else None,
+            source_published_at=source_timestamp(work.get("create_date")))
 
     @classmethod
     def _unavailable_series_entry(cls, entry):
@@ -378,12 +390,13 @@ class PixivConnector(Connector):
 
     def follows(self, checkpoint=lambda value: None):
         api = self._api()
-        user_id = self._user_id or str(getattr(api, "user_id", ""))
+        user_id = getattr(self, "_authenticated_user_id", "")
         if not user_id:
-            raise ConnectorError("请在 Pixiv 账号凭据中补充 user_id 以同步关注作者")
+            raise ConnectorError("Pixiv 登录响应缺少账号身份，请重新授权主账号后同步关注")
         results = []
         for restrict in ("public", "private"):
             params = {"user_id": user_id, "restrict": restrict}
+            seen = set()
             for page in range(100):
                 checkpoint(min(90, page))
                 response = self._check(api.user_following(**params))
@@ -393,12 +406,89 @@ class PixivConnector(Connector):
                 if not next_url:
                     break
                 validate_url(next_url, ("app-api.pixiv.net",))
-                params = api.parse_qs(next_url)
+                parsed = urlparse(next_url)
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                if (parsed.hostname != "app-api.pixiv.net" or parsed.path != "/v1/user/following" or parsed.fragment
+                        or set(query) - {"user_id", "restrict", "offset", "filter"}
+                        or any(len(values) != 1 for values in query.values())
+                        or query.get("user_id") != [user_id] or query.get("restrict", [restrict]) != [restrict]
+                        or query.get("filter", ["for_ios"]) != ["for_ios"]
+                        or not re.fullmatch(r"[0-9]{1,20}", query.get("offset", [""])[0])):
+                    raise ConnectorError("Pixiv 关注分页超出主账号范围，已停止同步")
+                offset = int(query["offset"][0])
+                if offset in seen:
+                    raise ConnectorError("Pixiv 关注分页重复，已停止同步")
+                seen.add(offset)
+                params = {"user_id": user_id, "restrict": restrict, "offset": offset}
             else:
                 raise ConnectorError("关注列表超过单次 100 页限制；尚未标记同步完成")
         return results
 
-    def discover(self, target_type, target, content_scope="images"):
+    def watchlist(self, checkpoint=lambda value: None):
+        """Read both official App API watchlists, committing only complete snapshots."""
+        api = self._api()
+        if not getattr(self, "_authenticated_user_id", ""):
+            raise ConnectorError("Pixiv 追更列表缺少登录身份，请重新授权主账号")
+        result = []
+        for index, kind in enumerate(("novel", "manga")):
+            params, offsets, seen = {"filter": "for_ios"}, set(), set()
+            for page in range(51):
+                checkpoint(min(85, index * 45 + page))
+                raw = api.no_auth_requests_call("GET", "https://app-api.pixiv.net/v1/watchlist/" + kind,
+                                                params=params, req_auth=True)
+                doc = self._check(api.parse_result(raw))
+                entries = doc.get("series")
+                if not isinstance(entries, list) or len(entries) > 100 or "next_url" not in doc:
+                    raise ConnectorError("Pixiv 追更列表格式不完整，原列表已保留")
+                for entry in entries:
+                    if not isinstance(entry, Mapping):
+                        raise ConnectorError("Pixiv 追更系列格式无效")
+                    ident = self._positive_id(entry.get("id"))
+                    if ident in seen:
+                        raise ConnectorError("Pixiv 追更分页出现重复系列，原列表已保留")
+                    seen.add(ident)
+                    if len(seen) > (1000 if kind == "novel" else 500):
+                        raise ConnectorError("Pixiv 追更列表超过单次同步容量")
+                    user, count = entry.get("user"), entry.get("published_content_count")
+                    if (not isinstance(entry.get("title"), str) or not entry["title"].strip()
+                            or len(entry["title"]) > 512 or not isinstance(user, Mapping)
+                            or not isinstance(user.get("name"), str) or type(count) is not int or not 0 <= count <= 1000000):
+                        raise ConnectorError("Pixiv 追更系列资料不完整，原列表已保留")
+                    latest = entry.get("latest_content_id")
+                    stamp = entry.get("last_published_content_datetime")
+                    if stamp is not None:
+                        from datetime import datetime
+                        try:
+                            if len(stamp) > 64: raise ValueError()
+                            datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                        except (ValueError, TypeError, AttributeError):
+                            raise ConnectorError("Pixiv 追更更新时间格式无效") from None
+                    result.append({"remote_id": ident, "kind": kind, "title": entry["title"],
+                        "author": user["name"][:191], "author_id": self._positive_id(user.get("id")),
+                        "content_count": count, "latest_content_id": self._positive_id(latest) if latest is not None else None,
+                        "remote_updated_at": stamp})
+                following = doc.get("next_url")
+                if following is None: break
+                validate_url(following, ("app-api.pixiv.net",))
+                parsed = urlsplit(following)
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                if (parsed.hostname != "app-api.pixiv.net" or parsed.path != "/v1/watchlist/" + kind
+                        or parsed.fragment or parsed.username or parsed.password or parsed.port not in (None, 443)
+                        or set(query) - {"offset", "limit", "filter"} or any(len(v) != 1 for v in query.values())
+                        or query.get("filter", ["for_ios"]) != ["for_ios"]
+                        or not re.fullmatch(r"[0-9]{1,8}", query.get("offset", [""])[0])
+                        or not re.fullmatch(r"[1-9][0-9]?|100", query.get("limit", ["30"])[0])):
+                    raise ConnectorError("Pixiv 追更分页越界，已停止同步")
+                offset = int(query["offset"][0])
+                if offset in offsets or offset <= params.get("offset", 0):
+                    raise ConnectorError("Pixiv 追更分页重复，已停止同步")
+                offsets.add(offset)
+                params = {"offset": offset, "limit": int(query.get("limit", ["30"])[0]), "filter": "for_ios"}
+            else:
+                raise ConnectorError("Pixiv 追更分页超过限制，未替换原列表")
+        return result
+
+    def discover(self, target_type, target, content_scope="images", *, include_author_bookmarks=False):
         if content_scope not in ("images", "novels", "all"):
             raise ConnectorError("Pixiv 内容范围必须是 images、novels 或 all")
         if target_type not in ("author", "tag", "search"):
@@ -408,7 +498,9 @@ class PixivConnector(Connector):
                 raise ConnectorError("Pixiv 作者订阅使用数字作者 ID")
         api = self._api()
         identities, has_more = [], False
-        def collect(response, novel=False):
+        self.bookmark_observations = {}
+        self.discovery_origins = {}
+        def collect(response, novel=False, origin="works"):
             nonlocal has_more
             response = self._check(response)
             works = response.get("novels" if novel else "illusts")
@@ -418,18 +510,26 @@ class PixivConnector(Connector):
                 if not isinstance(work, Mapping):
                     raise ConnectorError("Pixiv 返回的作品列表格式无效")
                 ident = self._positive_id(work.get("id"))
-                identities.append("novel:" + ident if novel else ident)
+                identity = "novel:" + ident if novel else ident
+                identities.append(identity)
+                self.discovery_origins.setdefault(identity, set()).add(origin)
+                if type(work.get("is_bookmarked")) is bool:
+                    self.bookmark_observations[identity] = work["is_bookmarked"]
             has_more = has_more or bool(response.get("next_url"))
         if content_scope in ("images", "all"):
             if target_type == "author":
                 # SDK defaults to type=illust, which omits the author's manga.
                 collect(api.user_illusts(target, type="illust"))
                 collect(api.user_illusts(target, type="manga"))
+                if include_author_bookmarks:
+                    collect(api.user_bookmarks_illust(target, restrict="public"), origin="bookmarks")
             else:
                 collect(api.search_illust(target, search_target="exact_match_for_tags" if target_type == "tag" else "title_and_caption", sort="date_desc"))
         if content_scope in ("novels", "all"):
             if target_type == "author":
                 collect(api.user_novels(target), novel=True)
+                if include_author_bookmarks:
+                    collect(api.user_bookmarks_novel(target, restrict="public"), novel=True, origin="bookmarks")
             else:
                 collect(api.search_novel(target, search_target="exact_match_for_tags" if target_type == "tag" else "keyword", sort="date_desc"), novel=True)
         return list(dict.fromkeys(identities)), has_more

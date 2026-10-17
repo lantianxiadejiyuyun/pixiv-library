@@ -271,6 +271,8 @@ class KemonoConnector(Connector):
             tags=list(dict.fromkeys([f"服务:{service}", *(tag[:191] for tag in tags if tag.strip())]))[:200],
             rating="unknown", metadata_only=not download, remote_page_count=(len(files) + bool(document.text)) or None)
         checkpoint(10)
+        from app.source_dates import source_timestamp
+        result.source_published_at = source_timestamp(post.get("published"))
         if not download:
             if images:
                 result.preview_cover = fetch_preview_cover(media_url(images[0][0], preview=True), MEDIA_HOSTS)

@@ -1,0 +1,63 @@
+name: qiye-ai-node
+x-node-build: &node-build
+  context: .
+  dockerfile: deploy/Dockerfile.ai-controller
+  args:
+    AI_RUNTIME: ${QIYE_AI_RUNTIME:-cpu}
+services:
+  controller:
+    image: qiye-ai-controller:0.1.0
+    build: *node-build
+    restart: unless-stopped
+    init: true
+    environment:
+      QIYE_CONTROLLER_KEY: ${QIYE_CONTROLLER_KEY:?Run scripts/bootstrap_ai_node.py first}
+      QIYE_NODE_ID: ${QIYE_NODE_ID:?Set QIYE_NODE_ID}
+      QIYE_STATE_DIR: /state
+      QIYE_OLLAMA_URL: http://ollama:11434
+      QIYE_VISION_URL: http://vision:9011
+    ports:
+      - "${QIYE_CONTROLLER_BIND:-0.0.0.0}:${QIYE_CONTROLLER_PORT:-9010}:9010"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - controller_state:/state
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:0.40.5}
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    labels:
+      io.qiye.ai.node: ${QIYE_NODE_ID}
+      io.qiye.ai.service: ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    security_opt: [no-new-privileges:true]
+  vision:
+    image: qiye-ai-controller:0.1.0
+    build: *node-build
+    command: [uvicorn, ai_controller.vision:app, --host, 0.0.0.0, --port, "9011", --no-access-log]
+    restart: unless-stopped
+    init: true
+    environment:
+      QIYE_CONTROLLER_KEY: ${QIYE_CONTROLLER_KEY}
+      LIBRARY_MODEL_DIR: /models
+      LIBRARY_AI_PROVIDER: ${QIYE_AI_PROVIDER:-auto}
+      LIBRARY_WORKER_PROCESS: ai
+    labels:
+      io.qiye.ai.node: ${QIYE_NODE_ID}
+      io.qiye.ai.service: vision
+    volumes:
+      - ${QIYE_AI_MODEL_PATH:-./models}:/models:ro
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: ${QIYE_VISION_MEMORY:-4g}
+volumes:
+  controller_state:
+  ollama_models:

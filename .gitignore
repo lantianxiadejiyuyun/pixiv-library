@@ -37,3 +37,4 @@ dist/
 *.key
 app/android/key.properties
 app/android/local.properties
+deploy/ai-node.env

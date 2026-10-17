@@ -23,7 +23,7 @@ from . import queue_control
 router = APIRouter(dependencies=[Depends(require_auth)])
 KEY = "metadata_translation"
 DEFAULTS = {"enabled": False, "provider": "ollama", "base_url": "http://host.docker.internal:11434",
-            "model": "", "api_key": "", "use_proxy": False}
+            "model": "", "api_key": "", "use_proxy": False, "controller_node_id": None}
 MAX_RESPONSE = 256 * 1024
 CHUNK = 24
 
@@ -53,7 +53,8 @@ def normalize_base_url(value):
 class SettingsInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enabled: bool
-    provider: Literal["ollama", "openai"]
+    provider: Literal["ollama", "openai", "controller"]
+    controller_node_id: str | None = Field(default=None, max_length=36)
     base_url: str = Field(min_length=1, max_length=2048)
     model: str = Field(default="", max_length=191)
     api_key: SecretStr | None = Field(default=None, max_length=2048)
@@ -86,9 +87,16 @@ class BatchInput(TranslateInput):
 def read_config(db):
     row = db.get(NetworkSetting, KEY)
     try:
-        return {**DEFAULTS, **(decrypt_credentials(row.value_encrypted) if row else {})}
+        config = {**DEFAULTS, **(decrypt_credentials(row.value_encrypted) if row else {})}
     except ConnectorError:
         raise HTTPException(503, "AI 汉化配置无法解密，请在网页重新保存") from None
+    if config["provider"] == "controller":
+        from .ai_nodes import node_by_id
+        try:
+            config["_controller"] = node_by_id(db, config["controller_node_id"])
+        except ConnectorError as exc:
+            config["_controller_error"] = str(exc)
+    return config
 
 
 def fingerprint(config):
@@ -110,7 +118,7 @@ def status(db=Depends(get_db)):
 def settings_view(db=Depends(get_db)):
     config = read_config(db)
     return {**public_status(config), "base_url": config["base_url"], "use_proxy": config["use_proxy"],
-            "has_api_key": bool(config["api_key"])}
+            "has_api_key": bool(config["api_key"]), "controller_node_id": config["controller_node_id"]}
 
 
 @router.put("/translation/settings")
@@ -125,6 +133,15 @@ def save_settings(value: SettingsInput, db=Depends(get_db)):
         data["api_key"] = value.api_key.get_secret_value().strip()
     if any(ord(char) < 33 or ord(char) == 127 for char in data["api_key"]):
         raise HTTPException(400, "模型密钥不能包含空白或控制字符")
+    if value.provider == "controller":
+        from .ai_nodes import node_by_id
+        try:
+            node = node_by_id(db, value.controller_node_id)
+        except ConnectorError as exc:
+            raise HTTPException(400, str(exc)) from None
+        data.update(base_url=node["base_url"], api_key="", use_proxy=False)
+    else:
+        data["controller_node_id"] = None
     row = db.get(NetworkSetting, KEY)
     if row is None:
         row = NetworkSetting(key=KEY)
@@ -137,6 +154,8 @@ def save_settings(value: SettingsInput, db=Depends(get_db)):
 def require_enabled(config):
     if not config["enabled"] or not config["model"]:
         raise HTTPException(503, "请先在网页设置中配置并启用 AI 汉化模型")
+    if config.get("_controller_error"):
+        raise HTTPException(503, config["_controller_error"])
 
 
 def needs_translation(item):
@@ -224,8 +243,14 @@ def model_translate(config, title, tags):
     if config["api_key"]:
         headers["Authorization"] = "Bearer " + config["api_key"]
     base = config["base_url"].rstrip("/")
+    if config["provider"] == "controller":
+        node = config.get("_controller")
+        if not node:
+            raise ConnectorError(config.get("_controller_error", "AI 控制器尚未配置"))
+        base = node["base_url"] + "/v1/ollama"
+        headers["Authorization"] = "Bearer " + node["key"]
     body = {"model": config["model"], "messages": messages, "stream": False}
-    if config["provider"] == "ollama":
+    if config["provider"] in ("ollama", "controller"):
         url = base + "/api/chat"
         body.update(format="json", options={"temperature": 0, "num_predict": 4096})
     else:
@@ -249,7 +274,7 @@ def model_translate(config, title, tags):
                     if len(raw) > MAX_RESPONSE:
                         raise ConnectorError("模型返回内容过大，请更换模型后重试")
                 document = json.loads(raw)
-        if config["provider"] == "ollama":
+        if config["provider"] in ("ollama", "controller"):
             if document.get("done") is False or document.get("done_reason") in ("length", "error"):
                 raise ConnectorError("模型未完成翻译，原文和已有译名均已保留")
             content = document["message"]["content"]

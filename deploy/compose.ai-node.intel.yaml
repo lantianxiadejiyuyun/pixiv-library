@@ -1,0 +1,13 @@
+services:
+  controller:
+    build:
+      args:
+        AI_RUNTIME: intel
+  vision:
+    build:
+      args:
+        AI_RUNTIME: intel
+    environment:
+      LIBRARY_AI_PROVIDER: intel
+    devices:
+      - /dev/dri:/dev/dri

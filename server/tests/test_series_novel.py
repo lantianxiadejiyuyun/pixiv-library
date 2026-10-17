@@ -113,7 +113,7 @@ class CatalogConnector:
                           files=[("novel.txt", b"body")] if download else [], metadata_only=not download,
                           remote_page_count=3, source_series={"remote_id": "777", "title": "官方目录", "kind": "novel"})
 
-    def discover(self, target_type, target, content_scope="images"):
+    def discover(self, target_type, target, content_scope="images", **kwargs):
         self.calls.append(("discover", content_scope))
         return (["novel:90"] if content_scope == "novels" else ["90"]), False
 

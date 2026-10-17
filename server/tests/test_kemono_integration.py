@@ -17,6 +17,7 @@ from test_video_assets import mp4
 
 def post(ident="mixed"):
     value = {"id": ident, "user": "creator-1", "service": "fanbox", "title": "合成资料",
+             "published": "2020-02-29T08:15:20+09:00", "added": "2026-10-17T00:00:00Z",
              "content": "<p>第一段</p><p>第二段</p>", "file": {"name": "cover.png", "path": "/ab/cd/cover.png"},
              "attachments": [{"name": "clip.mp4", "path": "/ab/cd/clip.mp4"}], "tags": ["合成标签"], "embed": {}}
     if ident == "image":
@@ -70,7 +71,7 @@ def platform_http(client, monkeypatch):
     return requests
 
 
-def enqueue(client, ident, *, queue="details"):
+def enqueue(client, ident, *, queue="manual_download"):
     response = client.post("/api/sources/kemono/import", json={"url": f"https://kemono.cr/fanbox/user/creator-1/post/{ident}"})
     assert response.status_code == 200, response.text
     assert response.json()["queue"] == queue
@@ -78,7 +79,7 @@ def enqueue(client, ident, *, queue="details"):
 
 
 def detail_and_body(client, job_id):
-    assert jobs.run_once({"details"})
+    assert jobs.run_once({"manual_download"})
     stage = client.get(f"/api/jobs/{job_id}").json()
     assert stage["status"] == "completed", stage
     assert stage["result"]["metadata_only"] is True
@@ -86,7 +87,7 @@ def detail_and_body(client, job_id):
     body_id = stage["result"]["content_job_id"]
     assert body_id != job_id
     body = client.get(f"/api/jobs/{body_id}").json()
-    assert body["kind"] == "import_content" and body["queue"] == "download" and body["status"] == "queued"
+    assert body["kind"] == "import_content" and body["queue"] == "manual_download" and body["status"] == "queued"
     return item_id, body_id
 
 
@@ -109,15 +110,17 @@ def test_real_two_stage_pipeline_saves_complete_readable_assets(client, platform
     assert metadata["source"] == "kemono" and metadata["source_url"].endswith(f"/post/{ident}")
     assert metadata["assets"] == [] and metadata["remote_page_count"] == len(mimes)
     assert metadata["content_state"] == "queued"
+    assert metadata["source_published_at"] == "2020-02-28T23:15:20Z"
     assert not any("/data/" in url and "/thumbnail/" not in url for url in platform_http)
     assert client.get("/api/items?source=kemono&downloaded=true").json()["total"] == 0
     if ident != "article":
         assert metadata["cover_url"] and client.get(metadata["cover_url"]).status_code == 200
-    assert jobs.run_once({"download"})
+    assert jobs.run_once({"manual_download"})
     status = client.get(f"/api/jobs/{body_id}").json()
     assert status["status"] == "completed", status
     saved = client.get(f"/api/items/{item_id}").json()
     assert saved["content_state"] == "ready" and saved["page_count"] == len(mimes)
+    assert saved["source_published_at"] == metadata["source_published_at"]
     assert [asset["mime_type"] for asset in saved["assets"]] == mimes
     assert client.get("/api/items?source=kemono&downloaded=true").json()["total"] == 1
     assert client.get("/api/items?source=pixiv").json()["total"] == 0
@@ -139,20 +142,20 @@ def test_real_two_stage_pipeline_saves_complete_readable_assets(client, platform
 
 
 def test_download_pause_does_not_prevent_metadata_and_preserves_preview(client, platform_http):
-    client.put("/api/queue/lanes/download", json={"paused": True}).raise_for_status()
     item_id, body_id = detail_and_body(client, enqueue(client, "mixed"))
-    assert jobs.run_once({"download"}) is False
+    client.put("/api/queue/lanes/manual_download", json={"paused": True}).raise_for_status()
+    assert jobs.run_once({"manual_download"}) is False
     waiting = client.get(f"/api/items/{item_id}").json()
     assert waiting["content_state"] == "queued" and waiting["cover_url"]
     assert client.get(f"/api/jobs/{body_id}").json()["status"] == "queued"
-    client.put("/api/queue/lanes/download", json={"paused": False}).raise_for_status()
-    assert jobs.run_once({"download"})
+    client.put("/api/queue/lanes/manual_download", json={"paused": False}).raise_for_status()
+    assert jobs.run_once({"manual_download"})
     assert client.get(f"/api/jobs/{body_id}").json()["status"] == "completed"
 
 
 def test_unsupported_attachment_keeps_metadata_but_never_counts_as_downloaded(client, platform_http):
     item_id, body_id = detail_and_body(client, enqueue(client, "unsupported"))
-    assert jobs.run_once({"download"})
+    assert jobs.run_once({"manual_download"})
     status = client.get(f"/api/jobs/{body_id}").json()
     assert status["status"] == "failed" and "未标记为已下载" in status["error"]
     item = client.get(f"/api/items/{item_id}").json()
@@ -189,10 +192,10 @@ def test_active_duplicate_import_reuses_jobs_and_saved_item(client, platform_htt
     first = enqueue(client, "mixed")
     assert enqueue(client, "mixed") == first
     item_id, body_id = detail_and_body(client, first)
-    assert enqueue(client, "mixed", queue="download") == body_id
-    assert jobs.run_once({"download"})
+    assert enqueue(client, "mixed", queue="manual_download") == body_id
+    assert jobs.run_once({"manual_download"})
     repeat = enqueue(client, "mixed")
-    assert jobs.run_once({"details"})
+    assert jobs.run_once({"manual_download"})
     status = client.get(f"/api/jobs/{repeat}").json()
     assert status["status"] == "completed" and status["result"]["item_id"] == item_id
     assert client.get("/api/items?source=kemono").json()["total"] == 1
@@ -202,7 +205,7 @@ def test_custom_api_changes_metadata_origin_but_keeps_official_media_hosts(clien
     response = client.put("/api/platform-endpoints/kemono", json={"custom_url": "https://mirror.example.com/mirror/v1", "enabled": True})
     assert response.status_code == 200, response.text
     _item_id, body_id = detail_and_body(client, enqueue(client, "mixed"))
-    assert jobs.run_once({"download"})
+    assert jobs.run_once({"manual_download"})
     assert client.get(f"/api/jobs/{body_id}").json()["status"] == "completed"
     api_calls = [url for url in platform_http if "/v1/" in url]
     assert api_calls and all(url.startswith("https://mirror.example.com/mirror/v1/") for url in api_calls)

@@ -126,6 +126,21 @@ class LibraryApi {
     return Map.unmodifiable(_authorization());
   }
 
+  /// Keep native, same-origin streaming requests consistent with API sessions.
+  void checkMediaAuthorization(int statusCode) {
+    if (statusCode == 401) {
+      _unauthorized();
+      throw ApiFailure(
+        isAdministrator ? '管理员登录已过期，请重新登录' : '设备授权已失效，请重新扫码绑定',
+        statusCode,
+      );
+    }
+    if (statusCode == 403) {
+      unawaited(clearImageCache().catchError((Object _) {}));
+      throw ApiFailure('没有此操作权限，请检查登录状态', statusCode);
+    }
+  }
+
   Uri resolve(String path, [Map<String, String>? query]) {
     if (path.contains('\\') || path.contains('#') || path.startsWith('//')) {
       throw const ApiFailure('资源地址无效');

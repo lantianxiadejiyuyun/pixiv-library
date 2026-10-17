@@ -17,42 +17,54 @@ from .database import SessionLocal
 from .integrations.base import JobCancelled
 from .models import Job, QueueControl, utcnow
 
-ACQUISITION_KINDS = ("import", "import_content", "source_sync", "series_sync", "author_profile", "author_feed")
+ACQUISITION_KINDS = ("import", "import_content", "source_sync", "series_sync", "author_profile", "author_feed", "pixiv_bookmark")
 MAX_CONCURRENCY = 8
-LANES = {"download": "内容下载", "details": "详情解析", "checks": "作者与订阅检查", "ai": "AI 识别", "translation": "AI 汉化", "other": "其他任务"}
-NETWORK_LANES = ("download", "details", "checks")
+LANES = {"manual_download": "手动下载", "retry": "失败重试", "download": "自动下载", "details": "详情解析", "checks": "作者与订阅检查", "ai": "AI 识别", "translation": "AI 汉化", "other": "其他任务"}
+NETWORK_LANES = ("manual_download", "retry", "download", "details", "checks")
+COLLECTION_LANES = ("download", "details", "checks")
 _context = local()
 
 
 def job_lane(job):
+    if job.payload.get("retry_queue") is True:
+        return "retry"
+    return original_lane(job)
+
+
+def original_lane(job):
+    if job.kind in ("import", "import_content") and job.payload.get("download_origin") == "manual":
+        return "manual_download"
     if job.kind == "import_content" or (job.kind == "import" and job.payload.get("platform") == "pixiv" and job.payload.get("download", True)):
-        return "download"
-    return {"import": "details", "source_sync": "checks", "series_sync": "checks", "author_profile": "checks", "author_feed": "checks", "ai": "ai", "translate": "translation"}.get(job.kind, "other")
+        return "manual_download" if job.payload.get("download_origin") == "manual" else "download"
+    return {"import": "details", "source_sync": "checks", "series_sync": "checks", "author_profile": "checks", "author_feed": "checks", "pixiv_bookmark": "checks", "ai": "ai", "translate": "translation"}.get(job.kind, "other")
+
+
+def download_requested():
+    # MySQL's JSON boolean cast maps a missing property to false before COALESCE
+    # can apply its default. Check absence with the nullable string cast first.
+    return or_(Job.payload["download"].as_string().is_(None), Job.payload["download"].as_boolean())
 
 
 def lane_expression():
-    bundled = and_(Job.kind == "import", func.coalesce(Job.payload["platform"].as_string(), "") == "pixiv",
-                   func.coalesce(Job.payload["download"].as_boolean(), True))
-    return case((Job.kind == "import_content", "download"), (bundled, "download"), (Job.kind == "import", "details"),
-                (Job.kind.in_(("source_sync", "series_sync", "author_profile", "author_feed")), "checks"),
-                (Job.kind == "ai", "ai"), (Job.kind == "translate", "translation"), else_="other")
+    return Job.queue_lane
+
+
+def retry_requested():
+    # A missing flag is ordinary work on both MySQL and SQLite. Keep the JSON
+    # boolean comparison explicit rather than depending on dialect truthiness.
+    return func.coalesce(Job.payload["retry_queue"].as_boolean(), False).is_(True)
 
 
 def lane_clause(key):
-    """Keep kind outside CASE so the claim index can prune unrelated jobs."""
-    bundled = and_(func.coalesce(Job.payload["platform"].as_string(), "") == "pixiv",
-                   func.coalesce(Job.payload["download"].as_boolean(), True))
-    return {"download": or_(Job.kind == "import_content", and_(Job.kind == "import", bundled)),
-            "details": and_(Job.kind == "import", not_(bundled)),
-            "checks": Job.kind.in_(("source_sync", "series_sync", "author_profile", "author_feed")),
-            "ai": Job.kind == "ai", "translation": Job.kind == "translate",
-            "other": Job.kind.not_in((*ACQUISITION_KINDS, "ai", "translate"))}[key]
+    if key not in LANES:
+        raise KeyError(key)
+    return Job.queue_lane == key
 
 
 def lane_settings(control):
     stored = control.lanes or {}
     return {key: {"paused": stored.get(key, {}).get("paused", False),
-                  "concurrency": stored.get(key, {}).get("concurrency", control.concurrency if key in NETWORK_LANES else 1)} for key in LANES}
+                  "concurrency": stored.get(key, {}).get("concurrency", control.concurrency if key in COLLECTION_LANES else 1)} for key in LANES}
 
 
 def update_lane(key, changes):
@@ -113,9 +125,9 @@ def update_settings(changes):
             if key in changes:
                 setattr(control, key, changes[key])
         if "concurrency" in changes:
-            # Legacy API remains a bulk update for the three network lanes.
+            # Collection-wide settings must not overwrite independent lanes.
             lanes = lane_settings(control)
-            for key in NETWORK_LANES:
+            for key in COLLECTION_LANES:
                 lanes[key]["concurrency"] = changes["concurrency"]
             control.lanes = lanes
         if type(control.concurrency) is not int or not 1 <= control.concurrency <= MAX_CONCURRENCY:
@@ -134,8 +146,12 @@ def check_paused(lane=None):
     with SessionLocal() as db:
         control = db.get(QueueControl, 1)
         lane = lane or getattr(_context, "lane", None)
-        if control is not None and ((control.paused and (lane is None or lane in NETWORK_LANES)) or (lane and lane_settings(control)[lane]["paused"])):
+        if control is not None and ((control.paused and (lane is None or lane in COLLECTION_LANES)) or (lane and lane_settings(control)[lane]["paused"])):
             raise QueuePaused()
+
+
+def current_lane():
+    return getattr(_context, "lane", None)
 
 
 @contextmanager
@@ -159,9 +175,9 @@ def wait_for_request():
         heartbeat()
         with SessionLocal() as db:
             control = lock_control(db)
-            if control.paused:
-                raise QueuePaused()
             lane = getattr(_context, "lane", None)
+            if control.paused and (lane is None or lane in COLLECTION_LANES):
+                raise QueuePaused()
             if lane and lane_settings(control)[lane]["paused"]:
                 raise QueuePaused()
             moment = utcnow()

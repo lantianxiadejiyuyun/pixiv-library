@@ -4,9 +4,9 @@ import { AlertCircle, Cpu, LoaderCircle, RefreshCw } from 'lucide-vue-next'
 import type { AIStatus } from '../types'
 const props = defineProps<{status: AIStatus; refreshing?: boolean; error?: string}>()
 defineEmits<{refresh: []}>()
-const requested = computed(() => ({auto: '自动选择', cpu: 'CPU', cuda: 'NVIDIA CUDA', intel: 'Intel 核显优先'} as Record<string, string>)[props.status.requested_provider || ''] || '尚未报告')
+const requested = computed(() => ({auto: '自动选择', cpu: 'CPU', cuda: 'NVIDIA CUDA', intel: 'Intel 核显优先', remote: '远程 AI 节点'} as Record<string, string>)[props.status.requested_provider || ''] || '尚未报告')
 const engine = computed(() => ({CPUExecutionProvider: 'ONNX Runtime · CPU', CUDAExecutionProvider: 'ONNX Runtime · CUDA', OpenVINOExecutionProvider: 'OpenVINO · Intel GPU'} as Record<string, string>)[props.status.actual_provider || ''] || props.status.actual_provider || '尚未执行推理')
-const state = computed(() => ({not_loaded: '尚未加载', ready: '已验证运行', fallback: '已回退运行', error: '运行异常'} as Record<string, string>)[props.status.execution_state || ''] || '状态未报告')
+const state = computed(() => ({not_loaded: '尚未加载', ready: '已验证运行', fallback: '已回退运行', error: '运行异常', configured: '远程节点已配置', unavailable: '节点不可用'} as Record<string, string>)[props.status.execution_state || ''] || '状态未报告')
 const stateClass = computed(() => props.status.execution_state === 'error' ? 'failed' : props.status.execution_state === 'fallback' ? 'queued' : props.status.execution_state === 'ready' ? 'success' : 'neutral')
 </script>
 <template>

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'api_image.dart';
 import 'models.dart';
+import 'author_download_controls.dart';
 
 String _failure(Object error) => error is ApiFailure && error.status == 409
     ? '请先在网页「内容来源」登录 Pixiv 账号。'
@@ -571,6 +572,14 @@ class _AuthorScreenState extends State<AuthorScreen> {
                       _profile!['description'] as String,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                if (_id != null && _profile?['download_settings'] is Map)
+                  AuthorDownloadControls(
+                    api: widget.api,
+                    authorId: _id!,
+                    initial: Map<String, dynamic>.from(
+                      _profile!['download_settings'] as Map,
                     ),
                   ),
                 const SizedBox(height: 10),

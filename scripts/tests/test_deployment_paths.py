@@ -51,6 +51,9 @@ def test_fresh_checkout_protects_credentials_before_bootstrap_and_preserves_exis
     assert first.returncode == 0, first.stderr
     environment = (tmp_path / "deploy/.env").read_bytes()
     assert b"MYSQL_PASSWORD=" in environment
+    values = dict(line.split("=", 1) for line in environment.decode().splitlines() if "=" in line and not line.startswith("#"))
+    assert 8 <= len(values["LIBRARY_ADMIN_PASSWORD"]) <= 20
+    assert values["LIBRARY_ADMIN_PASSWORD"] not in first.stdout + first.stderr
     assert not (tmp_path / ".env").exists()
     second = subprocess.run([sys.executable, str(tmp_path / "scripts/bootstrap_env.py")], cwd=tmp_path, capture_output=True, text=True)
     assert second.returncode != 0 and "left unchanged" in second.stderr

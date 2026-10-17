@@ -177,8 +177,12 @@ def set_tags(db: Session, item: Item, names: list[str], origin: str = "manual") 
     names = normalize_tags(names)
     item.item_tags[:] = [link for link in item.item_tags if link.origin != origin]
     db.flush()
+    seen = set()
     for name in sorted(names):
         tag = ensure_tag(db, name)
+        if tag.id in seen:
+            continue
+        seen.add(tag.id)
         item.item_tags.append(ItemTag(tag=tag, origin=origin))
 
 
@@ -256,6 +260,8 @@ def build_item_view(item: Item, include_assets: bool = False) -> dict:
     value["title_zh"] = item.title_zh if item.title_zh_source == item.title else None
     value["display_title"] = value["title_zh"] or item.title
     value["author_source_id"] = item.author_source_id
+    value["source_id"] = item.source_id
+    value["source_published_at"] = iso(item.source_published_at) if item.source_published_at else None
     value.update(is_favorite=item.favorite is not None, user_score=item.user_score or 0,
                  favorite_group_ids=sorted(link.group_id for link in item.favorite.groups) if item.favorite else [],
                  source_bookmark_count=item.source_bookmark_count)

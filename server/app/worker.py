@@ -4,9 +4,23 @@ import logging
 import os
 from pathlib import Path
 import signal
+import sys
 from threading import Thread
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
+
+
+def ai_snapshot(lane):
+    # Ordinary retry jobs must not eagerly import the inference runtime. Once
+    # this process actually runs an AI retry, report its own model/device state.
+    if lane != "ai" and (lane != "retry" or "app.ai.service" not in sys.modules):
+        return {}
+    from .ai.service import model_status
+    from .config import settings
+    directory = settings.model_dir / "wd-tagger"
+    return {"ai_status": model_status(),
+            "model_key": [path.stat().st_mtime_ns if path.is_file() else None
+                          for path in (directory / "model.onnx", directory / "selected_tags.csv")]}
 
 
 def main():
@@ -43,12 +57,7 @@ def main():
     def publish():
         value = {"pid": os.getpid(), "heartbeat": time.time(), "cpus": actual,
                  "affinity_applied": applied, "active": len(active), "owners": list(active.values())}
-        if lane == "ai":
-            from .ai.service import model_status
-            from .config import settings
-            directory = settings.model_dir / "wd-tagger"
-            value["ai_status"] = model_status()
-            value["model_key"] = [path.stat().st_mtime_ns if path.is_file() else None for path in (directory / "model.onnx", directory / "selected_tags.csv")]
+        value.update(ai_snapshot(lane))
         temporary = destination.with_suffix(".partial")
         temporary.write_text(json.dumps(value), encoding="utf-8")
         temporary.replace(destination)

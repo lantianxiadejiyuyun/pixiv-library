@@ -1,3 +1,4 @@
+import 'publication_time.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api.dart';
@@ -12,6 +13,8 @@ import 'score_editor.dart';
 import 'item_cover.dart';
 import 'source_labels.dart';
 import 'admin_screen.dart';
+import 'watchlist_screen.dart';
+import 'pixiv_direct_screen.dart';
 
 const _sources = librarySources;
 String _stateLabel(String state) => switch (state) {
@@ -403,6 +406,38 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   _openAuthors();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.portrait_outlined),
+                title: const Text('连载追更'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => WatchlistScreen(
+                        api: widget.api,
+                        onOpenItem: (id) => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                _ItemDetailScreen(api: widget.api, itemId: id),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.public),
+                title: const Text('Pixiv 在线'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PixivDirectScreen(library: widget.api),
+                    ),
+                  );
                 },
               ),
               ListTile(
@@ -1187,6 +1222,11 @@ class _ItemDetailScreenState extends State<_ItemDetailScreen> {
                     ].join(' · '),
                     style: TextStyle(color: colors.onSurfaceVariant),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '原作者发布时间：${publicationTime(item.sourcePublishedAt)}',
+                    style: TextStyle(color: colors.onSurfaceVariant),
+                  ),
                   if (item.author.isNotEmpty)
                     Align(
                       alignment: Alignment.centerLeft,
@@ -1215,6 +1255,26 @@ class _ItemDetailScreenState extends State<_ItemDetailScreen> {
                                     initialQuery: item.author,
                                     onOpenItem: _openMember,
                                   ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (item.source == 'pixiv' && item.sourceId != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.public),
+                        label: const Text('主账号直连查看'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => PixivDirectScreen(
+                              library: widget.api,
+                              initialId: item.sourceId!.replaceFirst(
+                                'novel:',
+                                '',
+                              ),
+                              initialNovel: item.type == 'novel',
+                            ),
                           ),
                         ),
                       ),

@@ -47,6 +47,8 @@ def pixiv_transport(monkeypatch):
                 "caption": "<p>模拟简介</p>", "tags": [{"name": "风景"}], "x_restrict": 0}}
         elif parsed.hostname == "app-api.pixiv.net" and parsed.path in {"/v1/user/illusts", "/v1/search/illust"}:
             body = {"illusts": [{"id": 123}, {"id": 456}], "next_url": "https://app-api.pixiv.net/v1/user/illusts?offset=30"}
+        elif parsed.hostname == "app-api.pixiv.net" and parsed.path in {"/v1/watchlist/novel", "/v1/watchlist/manga"}:
+            body = {"series": [], "next_url": None}
         else:
             raise AssertionError("Unexpected request: fixture prohibits live Pixiv traffic")
         response = requests.Response()
@@ -84,7 +86,7 @@ def test_invalid_sdk_responses_are_actionable_and_redacted(response):
 
 
 def test_real_sdk_following_public_private_and_next_page(pixiv_transport):
-    follows = PixivConnector({"refresh_token": "synthetic-refresh"}).follows()
+    follows = PixivConnector({"refresh_token": "synthetic-refresh", "user_id": "999"}).follows()
     assert [(entry["target"], entry["label"]) for entry in follows] == [
         ("201", "公开作者一"), ("202", "公开作者二"), ("203", "私密作者")]
     following_queries = [query for path, query in pixiv_transport if path == "/v1/user/following"]
@@ -118,7 +120,9 @@ def test_follow_sync_job_persists_real_sdk_results_and_retry_is_idempotent(clien
         assert job.result["remote_follows"] == 3
         assert {sub.target for sub in db.scalars(select(Subscription))} == {"201", "202", "203"}
     second = client.post("/api/sources/pixiv/sync", json=payload)
-    assert jobs.run_once()
+    for _ in range(3):
+        assert jobs.run_once()
+        if client.get('/api/jobs/'+second.json()['id']).json()['status']=='completed': break
     with SessionLocal() as db:
         job = db.get(Job, second.json()["id"])
         assert job.status == "completed", job.error

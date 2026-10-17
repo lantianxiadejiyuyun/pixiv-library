@@ -328,10 +328,10 @@ def test_user_upgraded_automatic_job_downloads_body_and_is_not_reused_as_cover_r
         db.commit()
     assert scheduler().scan() == 1
     with SessionLocal() as db:
-        assert db.query(Job).count() == 2
+        assert db.query(Job).filter(Job.kind == 'import').count() == 2
         original_job = db.get(Job, original_job_id)
         assert original_job.status == 'completed' and original_job.payload['download'] is True
-        repair = db.scalar(select(Job).where(Job.status == 'queued'))
+        repair = db.scalar(select(Job).where(Job.kind == 'import', Job.status == 'queued'))
         assert repair.id != original_job_id and repair.payload['download'] is False
 
 

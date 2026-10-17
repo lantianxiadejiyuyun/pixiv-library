@@ -1,3 +1,5 @@
+import 'publication_time.dart';
+
 class ReadingPosition {
   final int page, section;
   final double offset;
@@ -59,6 +61,8 @@ class LibraryItem {
   final String? coverUrl;
   final String? titleZh;
   final String? authorSourceId;
+  final String? sourceId;
+  final DateTime? sourcePublishedAt;
   final int pageCount;
   final bool isFavorite;
   final int userScore;
@@ -75,6 +79,8 @@ class LibraryItem {
       title = json['title'] as String? ?? '未命名',
       titleZh = json['title_zh'] as String?,
       authorSourceId = json['author_source_id'] as String?,
+      sourceId = json['source_id'] as String?,
+      sourcePublishedAt = parsePublicationTime(json['source_published_at']),
       type = json['type'] as String? ?? 'manga',
       source = json['source'] as String? ?? 'local',
       author = json['author'] as String? ?? '',
@@ -131,6 +137,8 @@ class LibraryItem {
        coverUrl = item.coverUrl,
        titleZh = item.titleZh,
        authorSourceId = item.authorSourceId,
+       sourceId = item.sourceId,
+       sourcePublishedAt = item.sourcePublishedAt,
        pageCount = item.pageCount,
        isFavorite = favorite ?? item.isFavorite,
        userScore = score ?? item.userScore,

@@ -18,6 +18,33 @@ GROUPS = {
 }
 
 TITLES = {
+    ("GET", "/pixiv/collection-settings"): "主账号收藏自动下载设置",
+    ("PUT", "/pixiv/collection-settings"): "设置主账号收藏自动下载",
+    ("POST", "/pixiv/bookmarks/sync"): "完整同步主账号收藏",
+    ("PUT", "/pixiv/authors/{author_id}/download-settings"): "作者作品与收藏下载设置",
+    ("GET", "/pixiv/watchlist"): "追更列表",
+    ("POST", "/pixiv/watchlist/sync"): "同步 Pixiv 追更列表",
+    ("PUT", "/pixiv/watchlist/settings"): "追更检查设置",
+    ("GET", "/pixiv/watchlist/{entry_id}"): "追更系列目录",
+    ("PUT", "/pixiv/watchlist/{entry_id}"): "设置系列追更与自动下载",
+    ("POST", "/pixiv/watchlist/{entry_id}/read"): "追更标记已读",
+    ("POST", "/pixiv/watchlist/{entry_id}/check"): "检查追更系列",
+    ("GET", "/ai/nodes"): "远程 AI 节点",
+    ("POST", "/ai/nodes"): "添加 AI 控制器",
+    ("GET", "/ai/nodes/deployment"): "下载 AI 节点部署包",
+    ("PUT", "/ai/nodes/routing"): "选择图片识别节点",
+    ("PUT", "/ai/nodes/{node_id}"): "修改 AI 节点",
+    ("DELETE", "/ai/nodes/{node_id}"): "移除 AI 节点连接",
+    ("POST", "/ai/nodes/{node_id}/test"): "测试 AI 控制器",
+    ("GET", "/ai/nodes/{node_id}/vision"): "远程图像模型状态",
+    ("POST", "/ai/nodes/{node_id}/services/{service}/{action}"): "控制 AI 容器",
+    ("GET", "/ai/nodes/{node_id}/models"): "远程 Ollama 模型",
+    ("POST", "/ai/nodes/{node_id}/models/pull"): "下载远程模型",
+    ("POST", "/ai/nodes/{node_id}/models/unload"): "释放远程模型内存",
+    ("DELETE", "/ai/nodes/{node_id}/models"): "删除远程模型",
+    ("GET", "/ai/nodes/{node_id}/operations"): "远程模型任务",
+    ("GET", "/ai/nodes/{node_id}/operations/{operation_id}"): "查看模型下载进度",
+    ("POST", "/ai/nodes/{node_id}/translation"): "使用远程汉化模型",
     ("GET", "/health"): "服务健康", ("GET", "/dashboard"): "书库概况",
     ("GET", "/settings"): "服务器设置", ("GET", "/sources"): "平台与账号",
     ("POST", "/sources/{platform}/accounts"): "导入账号凭据",
@@ -103,18 +130,18 @@ TITLES = {
 
 # Display labels only; schemas and validators continue to come from each route.
 LABELS = dict(part.split("=", 1) for part in """
-platform=平台|account_id=平台账号|main_account_id=检索主账号|content_account_id=图片下载账号|content_account_ids=图片下载账号|detail_account_ids=作品详情与正文账号|check_account_ids=作者资料账号|account_limits=每账号并发|enabled=启用|paused=暂停|concurrency=并发数|rate_limit_enabled=启用请求限流|min_interval_seconds=最小请求间隔（秒）|max_interval_seconds=最大请求间隔（秒）|request_interval_seconds=请求间隔（秒）|lane=队列|job_id=任务|item_id=作品|item_ids=作品|subscription_id=订阅|device_id=设备|series_id=系列|tag_id=人物标签|batch_id=测速批次|node_id=节点|node_ids=节点|label=名称|username=登录账号|password=密码|credentials=高级账号凭据|session_id=授权会话|code=授权码|url=链接|remote_id=平台作品编号|target_type=订阅类型|target=作者／标签／关键词|auto_download=自动下载正文|content_scope=内容范围|interval_minutes=检查间隔（分钟）|interval_hours=更新间隔（小时）|auto_update=自动更新|fetch_via_proxy=通过当前代理更新|proxy_url=代理地址|proxy_username=代理用户名|proxy_password=代理密码|controller_url=Clash 控制器地址|controller_secret=控制器密钥|group=策略组|node=节点名称|custom_url=自定义接口地址|admin_password=管理员密码|provider=模型类型|base_url=模型地址|model=模型名称|api_key=接口密钥|use_proxy=使用代理|consent=同意发送所选内容进行处理|force=重新处理已有结果|limit=数量上限|source=来源平台|type=内容类型|q=搜索关键词|status=状态|kind=任务类型|page=页码|page_size=每页数量|sort=排序|downloaded=仅已下载|favorite=仅收藏|history=仅浏览历史|favorite_group=收藏分组|tag=标签|author=作者|rating=内容分级|title=标题|description=介绍|tags=标签|paths=服务器相对路径|recursive=包含子目录|server_url=手机可访问的服务器地址|notes=更新说明|file=文件|files=文件|clear_api_key=清除已保存密钥|name=名称|items=作品列表|position=顺序|title_zh=中文标题|name_zh=中文名称|language=语言|created_at=创建时间|updated_at=更新时间|last_error=最近错误|error=错误|message=说明|progress=进度|result=结果|accounts=账号|subscriptions=订阅|nodes=节点|id=编号|total=总数|total_items=作品数|total_pages=文件数|total_bytes=总字节数|pending_jobs=待处理任务|untagged_items=无标签作品|source_counts=平台统计|rating_counts=分级统计|recent_items=最近作品|auth_status=登录状态|device_name=设备名称|expires_at=到期时间|last_used_at=最近使用|revoked_at=撤销时间|running=运行中|completed=已完成|failed=失败|queued=等待中|active=当前任务|lanes=各独立队列|token=凭据|access_token=授权凭据|qr_payload=绑定码|authorization_url=授权链接|login_url=授权链接|has_api_key=已保存密钥|effective_url=当前接口地址|default_url=默认接口地址|state=状态|healthy=健康|current=当前|content_state=正文状态|page_count=文件数|url_valid=地址有效|remote_page_count=平台总页数|content_job_id=正文任务|user_score=我的评分|is_favorite=已收藏|favorite_group_ids=收藏分组|group_ids=收藏分组|section=章节|offset=位置比例|rows=记录|label_zh=中文名称|service=服务|query=搜索内容|work_title=作品标题|candidate_name=人物名称|character_id=人物编号|character_name=人物名称|overwrite=覆盖已有资料
+platform=平台|account_id=平台账号|main_account_id=检索主账号|content_account_id=图片下载账号|content_account_ids=自动图片下载账号|manual_account_ids=手动下载账号|retry_account_ids=重试权限账号|detail_account_ids=作品详情与正文账号|check_account_ids=作者资料账号|account_limits=每账号并发|enabled=启用|paused=暂停|concurrency=并发数|rate_limit_enabled=启用请求限流|min_interval_seconds=最小请求间隔（秒）|max_interval_seconds=最大请求间隔（秒）|request_interval_seconds=请求间隔（秒）|lane=队列|job_id=任务|item_id=作品|item_ids=作品|subscription_id=订阅|device_id=设备|series_id=系列|tag_id=人物标签|batch_id=测速批次|node_id=节点|controller_node_id=AI 控制器节点|image_node_id=图片识别节点（留空使用本机）|key=控制器密钥|operation_id=模型任务编号|action=容器操作|node_ids=节点|label=名称|username=登录账号|password=密码|credentials=高级账号凭据|session_id=授权会话|code=授权码|url=链接|remote_id=平台作品编号|target_type=订阅类型|target=作者／标签／关键词|auto_download=自动下载正文|content_scope=内容范围|interval_minutes=检查间隔（分钟）|interval_hours=更新间隔（小时）|auto_update=自动更新|fetch_via_proxy=通过当前代理更新|proxy_url=代理地址|proxy_username=代理用户名|proxy_password=代理密码|controller_url=Clash 控制器地址|controller_secret=控制器密钥|group=策略组|node=节点名称|custom_url=自定义接口地址|admin_password=管理员密码|provider=模型类型|base_url=模型地址|model=模型名称|api_key=接口密钥|use_proxy=使用代理|consent=同意发送所选内容进行处理|force=重新处理已有结果|limit=数量上限|source=来源平台|type=内容类型|q=搜索关键词|status=状态|kind=任务类型|page=页码|page_size=每页数量|sort=排序|downloaded=仅已下载|favorite=仅收藏|history=仅浏览历史|favorite_group=收藏分组|tag=标签|author=作者|rating=内容分级|title=标题|description=介绍|tags=标签|paths=服务器相对路径|recursive=包含子目录|server_url=手机可访问的服务器地址|notes=更新说明|file=文件|files=文件|clear_api_key=清除已保存密钥|name=名称|items=作品列表|position=顺序|title_zh=中文标题|name_zh=中文名称|language=语言|created_at=创建时间|updated_at=更新时间|last_error=最近错误|retry_last_error=上次失败原因|original_queue=原队列|error=错误|message=说明|progress=进度|result=结果|accounts=账号|subscriptions=订阅|nodes=节点|id=编号|total=总数|total_items=作品数|total_pages=文件数|total_bytes=总字节数|pending_jobs=待处理任务|untagged_items=无标签作品|source_counts=平台统计|rating_counts=分级统计|recent_items=最近作品|auth_status=登录状态|device_name=设备名称|expires_at=到期时间|last_used_at=最近使用|revoked_at=撤销时间|running=运行中|completed=已完成|failed=失败|queued=等待中|active=当前任务|lanes=各独立队列|token=凭据|access_token=授权凭据|qr_payload=绑定码|authorization_url=授权链接|login_url=授权链接|has_api_key=已保存密钥|effective_url=当前接口地址|default_url=默认接口地址|state=状态|healthy=健康|current=当前|content_state=正文状态|page_count=文件数|url_valid=地址有效|remote_page_count=平台总页数|content_job_id=正文任务|user_score=我的评分|is_favorite=已收藏|favorite_group_ids=收藏分组|group_ids=收藏分组|section=章节|offset=位置比例|rows=记录|label_zh=中文名称|service=服务|query=搜索内容|work_title=作品标题|candidate_name=人物名称|character_id=人物编号|character_name=人物名称|overwrite=覆盖已有资料
 """.strip().split("|"))
 
 
 def _group(path):
     if path.startswith(("/network",)):
         return "network"
-    if path.startswith(("/sources", "/platform-endpoints")):
+    if path.startswith(("/sources", "/platform-endpoints", "/pixiv/collection-settings", "/pixiv/bookmarks")):
         return "sources"
     if path.startswith(("/jobs", "/queue")):
         return "queue"
-    if path.startswith("/subscriptions"):
+    if path.startswith(("/subscriptions", "/pixiv/watchlist")):
         return "subscriptions"
     if path.startswith(("/ai", "/translation")):
         return "ai"
@@ -167,7 +194,7 @@ def catalog(document):
             if value["name"] == "platform" and path == "/sources/{platform}/accounts":
                 schema["enum"] = ["pixiv", "ehentai", "picacg", "jm"]
             if value["name"] == "lane":
-                schema["enum"] = ["download", "details", "checks", "ai", "translation", "other"]
+                schema["enum"] = ["retry", "manual_download", "download", "details", "checks", "ai", "translation", "other"]
             parameters.append({"name": value["name"], "location": value["in"],
                                "required": value.get("required", False), "schema": schema})
         content = operation.get("requestBody", {}).get("content", {})
@@ -178,8 +205,8 @@ def catalog(document):
         actions.append({"id": method + " " + path, "method": method, "path": path,
                         "title": title, "group": _group(path), "parameters": parameters,
                         "body": body, "media_type": media,
-                        "download": path.endswith("/export"),
-                        "confirmation": method == "DELETE" or path in ("/translation/batch", "/network/managed/restart", "/app-updates/android")})
+                        "download": path.endswith(("/export", "/deployment")),
+                        "confirmation": method == "DELETE" or "/services/" in path or path in ("/translation/batch", "/network/managed/restart", "/app-updates/android")})
     return {"version": 1, "groups": GROUPS, "labels": LABELS, "actions": actions}
 
 

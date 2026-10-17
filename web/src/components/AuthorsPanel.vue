@@ -5,7 +5,7 @@ import type { Item } from '../types'
 import BookCard from './BookCard.vue'
 
 type Task = {id: string; status: string; error?: string; author_id?: string}
-type Profile = {remote_id: string; name: string; description: string; avatar_url?: string; can_read_private: boolean}
+type Profile = {remote_id: string; name: string; description: string; avatar_url?: string; can_read_private: boolean; download_settings?: {download_works:boolean;download_bookmarks:boolean;subscribed:boolean}}
 type Feed = {items: Item[]; total: number; complete: boolean; has_more: boolean; revision: number; unavailable: number; job: Task | null}
 const props = defineProps<{seed?: {key: number; target: string; query?: string}; blurAdult: boolean}>()
 const emit = defineEmits<{open: [id: string]}>()
@@ -15,6 +15,17 @@ const authorPage = ref(1), authorTotal = ref(0), page = ref(1)
 const profile = ref<Profile | null>(null), authorId = ref(''), feed = ref<Feed | null>(null)
 const section = ref('works'), category = ref('illustration'), privacy = ref('public')
 const pending = ref(false), opening = ref(false)
+const savingDownloads = ref(false)
+async function saveDownloads(key:'download_works'|'download_bookmarks') {
+  const current=profile.value,ident=authorId.value,version=profileRequest
+  if(savingDownloads.value||!current?.download_settings)return
+  savingDownloads.value=true;error.value=''
+  try {
+    const data=await api<NonNullable<Profile['download_settings']>>(`/pixiv/authors/${ident}/download-settings`,{method:'PUT',body:JSON.stringify({...current.download_settings,[key]:!current.download_settings[key],subscribed:undefined})})
+    if(alive&&version===profileRequest&&ident===authorId.value&&profile.value)profile.value.download_settings=data
+  }catch(failure){if(alive&&version===profileRequest)error.value=errorMessage(failure)}
+  finally{if(alive)savingDownloads.value=false}
+}
 let request = 0, profileRequest = 0, alive = true, listRequest = 0
 let profileTimer: ReturnType<typeof setTimeout> | undefined, feedTimer: ReturnType<typeof setTimeout> | undefined
 const filters = () => ({section: section.value, category: category.value, restrict: privacy.value})
@@ -115,6 +126,7 @@ onBeforeUnmount(() => { alive = false; request++; profileRequest++; clearTimeout
   <section v-if="profile || authorId" class="panel author-controls">
     <div v-if="profile" class="author-header"><img v-if="profile.avatar_url" :src="profile.avatar_url" alt="作者头像" /><div><h2>{{ profile.name }}</h2><p class="muted">Pixiv ID {{ profile.remote_id }}</p></div></div>
     <p v-if="profile?.description" class="author-description">{{ profile.description }}</p>
+    <div v-if="profile?.download_settings" class="author-actions"><label><input type="checkbox" :checked="profile.download_settings.download_works" :disabled="savingDownloads" @change="saveDownloads('download_works')" />下载作者发布的作品</label><label><input type="checkbox" :checked="profile.download_settings.download_bookmarks" :disabled="savingDownloads" @change="saveDownloads('download_bookmarks')" />下载作者公开收藏</label><small class="muted">关闭时仍获取封面和资料；已排队任务不自动取消。</small></div>
     <div class="author-actions"><button class="button small" :class="section === 'works' ? 'primary' : 'secondary'" @click="section = 'works'; change()">作者作品</button><button class="button small" :class="section === 'bookmarks' ? 'primary' : 'secondary'" @click="section = 'bookmarks'; change()">收藏</button></div>
     <div class="author-actions"><button v-for="(label, key) in {illustration: '插画', manga: '漫画', novel: '小说'}" :key="key" class="button small" :class="category === key ? 'primary' : 'secondary'" @click="category = key; change()">{{ label }}</button>
       <select v-if="section === 'bookmarks' && profile?.can_read_private" v-model="privacy" aria-label="收藏可见性" @change="change"><option value="public">公开收藏</option><option value="private">本人私密收藏</option></select>

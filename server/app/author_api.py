@@ -130,7 +130,40 @@ def author_detail(author_id: str, account_id: str | None = None, db=Depends(get_
             "avatar_url": f"/api/pixiv/authors/{ident}/avatar" if profile and profile.avatar else None,
             "synced_at": iso(profile.synced_at) if profile else None,
             "statistics": {key: value for key, value in stats.items() if not key.startswith("_")},
-            "can_read_private": bool(selected and selected.id in stats.get("_owned_accounts", []))}
+            "can_read_private": bool(selected and selected.id in stats.get("_owned_accounts", [])),
+            "download_settings": author_download_settings(db, ident)}
+
+
+def author_download_settings(db, ident):
+    from .subscription_policy import flags
+    row = db.scalar(select(Subscription).where(Subscription.platform == "pixiv", Subscription.target_type == "author",
+                                              Subscription.target == ident).order_by(Subscription.created_at, Subscription.id))
+    return {"download_works": False, "download_bookmarks": False, "subscribed": False} if row is None else {**flags(row), "subscribed": True}
+
+
+class AuthorDownloadInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    download_works: bool
+    download_bookmarks: bool
+
+
+@router.put("/pixiv/authors/{author_id}/download-settings")
+def save_author_downloads(author_id: str, value: AuthorDownloadInput, db=Depends(get_db)):
+    ident = checked_id(author_id)
+    selected = account(db, required=True)
+    queue_control.lock_control(db)
+    rows = db.scalars(select(Subscription).where(Subscription.platform == "pixiv", Subscription.target_type == "author",
+                                                Subscription.target == ident).with_for_update()).all()
+    if not rows:
+        profile = db.get(AuthorProfile, ident)
+        row = Subscription(platform="pixiv", target_type="author", target=ident,
+            label=profile.name if profile and profile.name else "Pixiv 作者 " + ident, enabled=True,
+            account_id=selected.id, content_scope="all", auto_download=False)
+        db.add(row); rows = [row]
+    for row in rows:
+        row.download_works, row.download_bookmarks = value.download_works, value.download_bookmarks
+        if row.enabled: row.next_check_at = None
+    db.commit();return author_download_settings(db,ident)
 
 
 @router.get("/pixiv/authors/{author_id}/avatar")
@@ -197,7 +230,7 @@ def request_feed(author_id: str, value: FeedInput, db=Depends(get_db)):
 def sync_profile(db, payload, report, guard):
     from .jobs import account_credentials
     # Validate the directory owner before using an assigned author-profile account.
-    original = account_credentials(db, "pixiv", payload["account_id"], pinned=True)
+    original = account_credentials(db, "pixiv", payload["account_id"], pinned=True, require_retry=False)
     assigned = payload.get("check_account_id") or payload.get("execution_account_id")
     purpose = "metadata" if str(payload["target"]).lower() == "me" else "checks"
     credentials = account_credentials(db, "pixiv", assigned or payload["account_id"], purpose=purpose, pinned=bool(assigned))
@@ -230,6 +263,7 @@ def sync_profile(db, payload, report, guard):
 
 def sync_feed(db, payload, report, guard):
     from .jobs import account_credentials, merge_remote_item, enqueue_import
+    from .pixiv_favorites import request_account_id
     feed = db.get(AuthorFeed, payload["feed_id"])
     if feed is None:
         raise ConnectorError("作者目录或账号已被删除")
@@ -247,6 +281,7 @@ def sync_feed(db, payload, report, guard):
     if restrict == "private" and assigned and assigned != payload["account_id"]:
         raise ConnectorError("私密收藏必须由原账号读取，请重试任务")
     connector = get_connector("pixiv", account_credentials(db, "pixiv", assigned, purpose="metadata", pinned=True) if assigned else original)
+    bookmark_owner = request_account_id(db, assigned or payload["account_id"], pinned=True)
     db.commit()
     works = []
     # Bookmark image endpoints mix illustration and manga. Advance through at
@@ -273,21 +308,29 @@ def sync_feed(db, payload, report, guard):
         raise ConnectorError("目录已删除或更新，结果未保存")
     alive = set(db.scalars(select(Item.id).where(Item.id.in_(list(known.values()))).with_for_update())) if known else set()
     deleted = {remote_id for remote_id, local_id in known.items() if local_id not in alive}
+    from .subscription_policy import flags
+    subscription = db.scalar(select(Subscription).where(Subscription.platform == "pixiv", Subscription.target_type == "author",
+                                                      Subscription.target == ident).order_by(Subscription.created_at, Subscription.id))
+    download = False
+    if subscription and subscription.enabled and (subscription.content_scope == "all" or
+            (subscription.content_scope == "novels") == (current.category == "novel")):
+        download = flags(subscription)["download_works" if current.section == "works" else "download_bookmarks"]
+        if current.section == "bookmarks" and current.restrict != "public": download = False
     queued = set()
     for index, work in enumerate(works):
         if work.remote_id in deleted:
             unavailable += 1
             continue
-        item = merge_remote_item(db, "pixiv", work)
+        item = merge_remote_item(db, "pixiv", work, bookmark_account_id=bookmark_owner)
         entry = db.get(AuthorFeedEntry, (current.id, item.id))
         if entry is None:
             entry = AuthorFeedEntry(feed_id=current.id, item_id=item.id, generation=generation, position=raw_count - len(works) + index)
             db.add(entry)
         elif entry.generation != generation:
             entry.generation, entry.position = generation, raw_count - len(works) + index
-        if not item.assets and not item.preview_cover:
+        if not item.assets and (not item.preview_cover or download):
             cover_job = enqueue_import(db, {"platform": "pixiv", "remote_id": work.remote_id, "item_id": item.id,
-                "account_id": payload["account_id"], "download": False}, commit=False, locked=True)
+                "account_id": payload["account_id"], "download": download}, commit=False, locked=True)
             queued.add(cover_job.id)
     complete = cursor is None and unavailable == 0
     if complete:
@@ -298,4 +341,4 @@ def sync_feed(db, payload, report, guard):
     guard(db)
     db.commit()
     return {"author_id": ident, "feed_id": current.id, "queued_covers": len(queued),
-            "has_more": cursor is not None, "complete": complete, "message": "目录已保存，缺失封面已排队；正文需另行下载"}
+            "has_more": cursor is not None, "complete": complete, "message": "目录已保存，缺失正文已进入自动下载队列" if download else "目录已保存，缺失封面已排队；正文需另行下载"}

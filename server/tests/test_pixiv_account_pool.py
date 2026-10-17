@@ -113,6 +113,9 @@ def test_assignment_survives_pause_and_explicit_retry_can_reassign_after_pool_ch
         assert row.status == 'failed' and row.payload['download_account_id'] == accounts['content']
     assert not any(token == 'third-test' for token, _, _ in calls)
     configure(client, accounts, [third])
+    # An explicit retry also requires the new permission on both actual roles.
+    assert client.put(URL, json={'enabled': True, 'main_account_id': accounts['main'],
+        'content_account_ids': [third], 'retry_account_ids': [third, accounts['main']]}).status_code == 200
     assert client.post(f'/api/jobs/{identifier}/retry').status_code == 200
     monkeypatch.setattr(jobs, 'get_connector', lambda platform, credentials: RoleConnector(credentials['refresh_token'], calls, False))
     assert jobs.run_once()

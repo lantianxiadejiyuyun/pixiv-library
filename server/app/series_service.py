@@ -58,6 +58,8 @@ def sync_series(db, payload, report, guard):
     from .jobs import get_connector, account_credentials, merge_remote_item, enqueue_import
     connector = get_connector("pixiv", account_credentials(db, "pixiv", payload.get("check_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
                              purpose="metadata", pinned=bool(payload.get("check_account_id"))))
+    from .pixiv_favorites import request_account_id
+    bookmark_owner = request_account_id(db, payload.get("check_account_id") or payload.get("execution_account_id") or payload.get("account_id"), pinned=bool(payload.get("check_account_id")))
     membership = select(SeriesEntry.item_id).join(Series, Series.id == SeriesEntry.series_id).where(
         Series.source == "pixiv", Series.source_id == payload["remote_id"], Series.kind == payload["series_kind"])
     known_members = dict(db.execute(select(Item.source_id, Item.id).where(Item.source == "pixiv", or_(
@@ -76,6 +78,8 @@ def sync_series(db, payload, report, guard):
     if len({work.remote_id for work in works}) != len(works):
         raise ConnectorError("Pixiv 系列目录含重复作品，请稍后重新获取")
     queue_control.lock_control(db)
+    from .watchlist import series_context
+    watch = series_context(db, payload)
     series = db.scalar(select(Series).where(Series.source == "pixiv", Series.source_id == payload["remote_id"],
         Series.kind == payload["series_kind"]).with_for_update().execution_options(populate_existing=True))
     if series is None:
@@ -94,11 +98,11 @@ def sync_series(db, payload, report, guard):
         # Directory membership is authoritative, regardless of whether the
         # individual summary included its own series field.
         work.source_series = {"remote_id": payload["remote_id"], "title": catalog["title"], "kind": payload["series_kind"]}
-        item = merge_remote_item(db, "pixiv", work)
+        item = merge_remote_item(db, "pixiv", work, bookmark_account_id=bookmark_owner)
         entries.append((item.id, ""))
-        if not item.assets and not item.preview_cover:
+        if not item.assets and (not item.preview_cover or watch is not None and watch.auto_download):
             job = enqueue_import(db, {"platform": "pixiv", "remote_id": work.remote_id,
-                "item_id": item.id, "account_id": payload.get("account_id"), "download": False}, commit=False, locked=True)
+                "item_id": item.id, "account_id": payload.get("account_id"), "download": bool(watch and watch.auto_download)}, commit=False, locked=True)
             queued.append(job.id)
     complete = catalog.get("complete") is True and not deleted_members
     # An interrupted/limited refresh must not erase an already saved directory.
@@ -111,10 +115,13 @@ def sync_series(db, payload, report, guard):
         series.complete = False
         if not directory_updated:
             series.revision += 1
+    if watch:
+        from .models import utcnow
+        watch.series_id, watch.last_checked_at, watch.last_error = series.id, utcnow(), None
     guard(db)
     db.commit()
     return {"series_id": series.id, "entry_count": len(series.entries), "complete": series.complete,
             "directory_updated": directory_updated, "queued_jobs": queued, "skipped_deleted": len(deleted_members),
-            "message": ("读取目录期间有作品被删除，已跳过；目录标记为不完整，未下载正文" if deleted_members else
+            "message": ("追更目录已检查，缺失正文进入自动下载队列" if watch and watch.auto_download else "读取目录期间有作品被删除，已跳过；目录标记为不完整，未下载正文" if deleted_members else
                         "系列目录已保存，缺失封面已排队；未下载正文" if directory_updated else
                         "远端仅返回部分目录，已保留已有目录；缺失封面已排队，未下载正文")}

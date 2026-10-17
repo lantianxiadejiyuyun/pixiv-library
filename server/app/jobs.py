@@ -57,7 +57,7 @@ def _record_internal_failure(job_id, kind, exc):
         opaque_id = str(uuid.UUID(job_id))
     except (ValueError, TypeError, AttributeError):
         opaque_id = "unknown"
-    safe_kind = kind if kind in {"import", "import_content", "source_sync", "series_sync", "ai", "translate", "author_profile", "author_feed"} else "unknown"
+    safe_kind = kind if kind in {"import", "import_content", "source_sync", "series_sync", "ai", "translate", "author_profile", "author_feed", "pixiv_bookmark"} else "unknown"
     frames = deque(maxlen=DIAGNOSTIC_FRAME_LIMIT)
     trace = exc.__traceback__
     while trace is not None:
@@ -77,11 +77,11 @@ def _record_internal_failure(job_id, kind, exc):
 
 
 def job_view(job):
-    return {"id": job.id, "kind": job.kind, "queue": queue_control.job_lane(job), "status": job.status, "progress": job.progress,
-            "error": job.error, "created_at": job.created_at.isoformat() + "Z",
+    return {"id": job.id, "kind": job.kind, "queue": queue_control.job_lane(job), "original_queue": queue_control.original_lane(job), "status": job.status, "progress": job.progress,
+            "error": job.error, "retry_last_error": job.payload.get("retry_last_error"), "created_at": job.created_at.isoformat() + "Z",
             "updated_at": job.updated_at.isoformat() + "Z", "result": job.result,
             "item_id": job.payload.get("item_id") or (job.result or {}).get("item_id"),
-            "label": "Pixiv 详情与正文下载" if bundled_pixiv(job) and not (job.status == "completed" and (job.result or {}).get("metadata_only") is True) else None}
+            "label": "Pixiv 追更列表同步" if job.payload.get("watchlist") else "Pixiv 主账号收藏检查" if job.kind == "pixiv_bookmark" else "Pixiv 详情与正文下载" if bundled_pixiv(job) and not (job.status == "completed" and (job.result or {}).get("metadata_only") is True) else None}
 
 
 def bundled_pixiv(job):
@@ -119,6 +119,18 @@ def enqueue_import(db, payload, *, commit=True, locked=False):
         chosen = Job(kind="import", status="queued", payload=payload)
         db.add(chosen)
         db.flush()
+    if isinstance(payload.get("pixiv_bookmark_state"), dict):
+        chosen.payload = {**chosen.payload, "pixiv_bookmark_state": payload["pixiv_bookmark_state"]}
+    if payload.get("download_origin") == "manual" and requested_body and chosen.status == "queued":
+        # Explicit manual requests promote waiting automatic work, while an
+        # already running body retains its identity and is not downloaded twice.
+        chosen.payload = {**{key: value for key, value in chosen.payload.items()
+                            if key not in ("download_account_id", "details_account_id", "execution_account_id")},
+                          "download_origin": "manual"}
+    elif payload.get("download_origin") == "manual" and requested_body and chosen.kind == "import" and platform != "pixiv":
+        # Other platforms' running first stage has not started the body yet.
+        # Let the follow-up body inherit the explicit manual request.
+        chosen.payload = {**chosen.payload, "download_origin": "manual"}
     item = db.scalar(select(Item).where(Item.source == platform, Item.source_id == remote_id).with_for_update().execution_options(populate_existing=True))
     if item is not None:
         if not chosen.payload.get("item_id"):
@@ -132,10 +144,10 @@ def enqueue_import(db, payload, *, commit=True, locked=False):
     return chosen
 
 
-def account_credentials(db, platform, account_id=None, *, purpose="metadata", pinned=False):
+def account_credentials(db, platform, account_id=None, *, purpose="metadata", pinned=False, require_retry=True):
     if platform == "pixiv":
         from .pixiv_accounts import resolve_account_id
-        account_id = resolve_account_id(db, account_id, purpose=purpose, pinned=pinned)
+        account_id = resolve_account_id(db, account_id, purpose=purpose, pinned=pinned, require_retry=require_retry)
     if account_id:
         account = db.get(SourceAccount, account_id)
         if not account or account.platform != platform:
@@ -153,12 +165,14 @@ def pixiv_account_label(db, payload, *, content=False):
     ident = resolve_account_id(db, requested, purpose=purpose, pinned=bool(payload.get(field)))
     account = db.get(SourceAccount, ident) if ident else db.scalar(select(SourceAccount).where(SourceAccount.platform == "pixiv").order_by(SourceAccount.created_at))
     label = " ".join(account.label.split())[:80] if account else ""
-    stage = "图片下载" if purpose == "content" else "作品详情与正文"
+    stage = "手动下载" if purpose == "manual" else "图片下载" if purpose == "content" else "作品详情与正文"
     return f"Pixiv {stage}账号" + (f"「{label}」" if label else "")
 
 
 def pixiv_body_role(payload):
     from .pixiv_accounts import is_novel_payload
+    if payload.get("download_origin") == "manual":
+        return "download_account_id", "manual"
     return ("details_account_id", "details") if is_novel_payload(payload) else ("download_account_id", "content")
 
 
@@ -172,6 +186,11 @@ def pixiv_stage(label):
 
 def checkpoint(job_id, progress):
     with SessionLocal() as db:
+        if queue_control.current_lane() == "retry":
+            from .pixiv_accounts import validate_retry_assignment
+            job = db.get(Job, job_id)
+            if job is not None:
+                validate_retry_assignment(db, job)
         changed = db.execute(update(Job).where(Job.id == job_id, Job.status == "running", Job.worker_id == current_worker_id())
             .values(progress=progress, updated_at=utcnow(), lease_until=utcnow() + timedelta(seconds=LEASE_SECONDS)))
         db.commit()
@@ -183,14 +202,21 @@ def checkpoint(job_id, progress):
 
 def commit_guard(db, job_id):
     """Lock and re-read ownership inside the transaction being committed."""
+    if queue_control.current_lane() == "retry":
+        # Same lock order as role updates. The following permission read must
+        # see the current configuration, not a MySQL repeatable-read snapshot.
+        queue_control.lock_control(db)
     job = db.scalar(select(Job).where(Job.id == job_id).with_for_update().execution_options(populate_existing=True))
     if (not job or job.status != "running" or job.worker_id != current_worker_id()
             or job.lease_until is None or job.lease_until < utcnow() or _stop.is_set()):
         raise JobCancelled()
     queue_control.check_paused(queue_control.job_lane(job))
+    if job.payload.get("retry_queue") is True:
+        from .pixiv_accounts import validate_retry_assignment
+        validate_retry_assignment(db, job, for_update=True)
 
 
-def merge_remote_item(db, platform, work):
+def merge_remote_item(db, platform, work, *, bookmark_account_id=None, bookmark_hint=None):
     """Merge only source navigation fields into existing, possibly edited items."""
     item = db.scalar(select(Item).where(Item.source == platform, Item.source_id == work.remote_id)
                      .with_for_update().execution_options(populate_existing=True))
@@ -201,10 +227,18 @@ def merge_remote_item(db, platform, work):
         db.add(item)
         db.flush()
         from .library import ensure_tag
+        seen = set()
         for name in sorted(set(t[:191] for t in work.tags if t)):
             tag = ensure_tag(db, name)
+            if tag.id in seen:
+                continue
+            seen.add(tag.id)
             db.add(ItemTag(item_id=item.id, tag_id=tag.id, origin="source"))
     remote_count = getattr(work, "remote_page_count", None)
+    from .source_dates import source_timestamp
+    published = source_timestamp(getattr(work, "source_published_at", None))
+    if published is not None:
+        item.source_published_at = published
     if getattr(work, "author_id", None):
         item.author_source_id = work.author_id
     if type(remote_count) is int and 0 <= remote_count <= 1000000:
@@ -217,20 +251,25 @@ def merge_remote_item(db, platform, work):
         ident, title = str(source_series.get("remote_id", "")), str(source_series.get("title", ""))
         if ident and len(ident) <= 255 and title and len(title) <= 512:
             item.source_series = {"remote_id": ident, "title": title, "kind": source_series["kind"]}
+    if platform == "pixiv" and bookmark_account_id is not None:
+        from .pixiv_favorites import observe
+        observe(db, item, work, bookmark_account_id, bookmark_hint)
     return item
 
 
-def _persist_metadata(db, platform, work, guard, *, preview=None, queue_payload=None, job_id=None, expected_item_id=None, cover_only_if_missing=False):
+def _persist_metadata(db, platform, work, guard, *, preview=None, queue_payload=None, job_id=None, expected_item_id=None, cover_only_if_missing=False, bookmark_account_id=None, bookmark_hint=None):
     queue_control.lock_control(db)
     if expected_item_id and db.scalar(select(Item.id).where(Item.id == expected_item_id).with_for_update()) is None:
         db.rollback()
         return None
-    item = merge_remote_item(db, platform, work)
+    item = merge_remote_item(db, platform, work, bookmark_account_id=bookmark_account_id, bookmark_hint=bookmark_hint)
     if preview is not None and not (cover_only_if_missing and item.preview_cover):
         item.preview_cover = preview
     if job_id:
         current = db.get(Job, job_id)
         if current:
+            if queue_payload is not None and current.payload.get("download_origin") == "manual":
+                queue_payload = {**queue_payload, "download_origin": "manual"}
             current.payload = {**current.payload, "item_id": item.id}
     if queue_payload is not None and not item.assets:
         body = db.scalar(select(Job).where(Job.kind == "import_content", Job.status.in_(("queued", "running")),
@@ -239,6 +278,11 @@ def _persist_metadata(db, platform, work, guard, *, preview=None, queue_payload=
             body = Job(kind="import_content", status="queued", payload={**queue_payload, "item_id": item.id, "download": True})
             db.add(body)
             db.flush()
+        elif body.status == "queued" and queue_payload.get("download_origin") == "manual":
+            body.payload = {**body.payload, "download_origin": "manual"}
+        if body.status == "queued" and queue_payload.get("retry_queue") is True:
+            body.payload = {**body.payload, "retry_queue": True,
+                            "retry_last_error": queue_payload.get("retry_last_error")}
         item.content_job_id, item.content_error = body.id, None
         item.content_state = "downloading" if body.status == "running" else "queued"
     guard(db)
@@ -261,15 +305,21 @@ def _import(db, payload, report, guard, job_id=None):
                     "cover_saved": bool(current and current.preview_cover), "message": "封面已存在或作品已删除，自动补全已跳过"}
     connector = get_connector(platform, account_credentials(db, platform, payload.get("details_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
                               purpose="details" if platform == "pixiv" else "metadata", pinned=bool(payload.get("details_account_id"))))
+    bookmark_owner = None
+    if platform == "pixiv":
+        from .pixiv_favorites import request_account_id
+        bookmark_owner = request_account_id(db, payload.get("details_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
+            purpose="details", pinned=bool(payload.get("details_account_id")))
     stage_label = pixiv_account_label(db, payload) if platform == "pixiv" else None
     ident = connector.normalize_id(payload["remote_id"])
     existing = db.scalar(select(Item).where(Item.source == platform, Item.source_id == ident))
-    if existing and existing.assets and not (existing.type in ("novel", "article") and not existing.preview_cover):
+    if existing and existing.assets and not payload.get("refresh_metadata") and not (existing.type in ("novel", "article") and not existing.preview_cover):
         return {"item_id": existing.id, "existing": True, "metadata_only": False, "content_state": "ready"}
+    skip_preview = platform == "pixiv" and bool(payload.get("refresh_metadata") and existing and existing.preview_cover)
     # Finish the read transaction before gate waits and platform requests.
     db.rollback()
     with pixiv_stage(stage_label) if stage_label else nullcontext():
-        work = connector.fetch(ident, download=False, checkpoint=report)
+        work = connector.fetch(ident, download=False, checkpoint=report, **({"include_preview": False} if skip_preview else {}))
     report(90)
     preview = None
     if getattr(work, "preview_cover", None):
@@ -283,7 +333,8 @@ def _import(db, payload, report, guard, job_id=None):
     db.rollback()
     item = _persist_metadata(db, platform, work, guard, preview=preview,
         queue_payload={**payload, "remote_id": ident} if payload.get("download", True) else None,
-        job_id=job_id, expected_item_id=payload.get("item_id"), cover_only_if_missing=automatic_cover)
+        job_id=job_id, expected_item_id=payload.get("item_id"), cover_only_if_missing=automatic_cover,
+        bookmark_account_id=bookmark_owner, bookmark_hint=payload.get("pixiv_bookmark_state"))
     if item is None:
         return {"skipped": True, "message": "作品已删除，封面任务已跳过"}
     return {"item_id": item.id, "metadata_only": not bool(item.assets), "content_state": item.content_state,
@@ -305,11 +356,17 @@ def _import_pixiv(db, payload, report, guard, job_id):
     field, purpose = pixiv_body_role(payload)
     content = get_connector("pixiv", account_credentials(db, "pixiv", payload.get(field) or payload.get("execution_account_id") or payload.get("account_id"),
                             purpose=purpose, pinned=bool(payload.get(field))))
+    from .pixiv_accounts import is_novel_payload
     metadata = get_connector("pixiv", account_credentials(db, "pixiv", payload.get("details_account_id") or payload.get("account_id"),
-                             purpose="details", pinned=bool(payload.get("details_account_id")))) if split and purpose == "content" else None
+                             purpose="details", pinned=bool(payload.get("details_account_id")))) if split and not is_novel_payload(payload) else None
     if payload.get("details_account_id") and payload.get("details_account_id") == payload.get("download_account_id"):
         metadata = None  # The same identity returns both in one fetch.
     split = metadata is not None
+    from .pixiv_favorites import request_account_id
+    bookmark_owner = request_account_id(db,
+        (payload.get("details_account_id") or payload.get("account_id")) if split else
+        (payload.get(field) or payload.get("execution_account_id") or payload.get("account_id")),
+        purpose="details" if split else purpose, pinned=bool(payload.get("details_account_id") if split else payload.get(field)))
     content_label = pixiv_account_label(db, payload, content=True)
     metadata_label = pixiv_account_label(db, payload) if split else None
     ident = content.normalize_id(payload["remote_id"])
@@ -344,7 +401,8 @@ def _import_pixiv(db, payload, report, guard, job_id):
     if payload.get("item_id") and db.scalar(select(Item.id).where(Item.id == payload["item_id"]).with_for_update()) is None:
         db.rollback()
         return {"skipped": True, "message": "作品已删除，下载任务已跳过"}
-    item = merge_remote_item(db, "pixiv", work)
+    item = merge_remote_item(db, "pixiv", work, bookmark_account_id=bookmark_owner,
+        bookmark_hint=payload.get("pixiv_bookmark_state"))
     if preview is not None:
         item.preview_cover = preview
     def before_commit(session):
@@ -372,6 +430,11 @@ def _import_content(db, payload, report, guard):
     field, purpose = pixiv_body_role(payload) if platform == "pixiv" else ("download_account_id", "content")
     connector = get_connector(platform, account_credentials(db, platform, payload.get(field) or payload.get("execution_account_id") or payload.get("account_id"),
                               purpose=purpose, pinned=bool(payload.get(field))))
+    bookmark_owner = None
+    if platform == "pixiv":
+        from .pixiv_favorites import request_account_id
+        bookmark_owner = request_account_id(db, payload.get(field) or payload.get("execution_account_id") or payload.get("account_id"),
+            purpose=purpose, pinned=bool(payload.get(field)))
     stage_label = pixiv_account_label(db, payload, content=True) if platform == "pixiv" else None
     ident = connector.normalize_id(payload["remote_id"])
     existing = db.scalar(select(Item).where(Item.source == platform, Item.source_id == ident))
@@ -390,9 +453,17 @@ def _import_content(db, payload, report, guard):
             guard(db)
             if db.get(Item, payload["item_id"]) is None:
                 raise JobCancelled()
+            from .source_dates import source_timestamp
+            published = source_timestamp(getattr(work, "source_published_at", None))
+            if published is not None:
+                db.execute(update(Item).where(Item.id == payload["item_id"]).values(source_published_at=published))
             if work.rating != "unknown" and not split_accounts:
                 db.execute(update(Item).where(Item.source == platform, Item.source_id == work.remote_id,
                     Item.rating_origin != "manual").values(rating=work.rating, rating_origin="source"))
+            if platform == "pixiv" and bookmark_owner:
+                from .pixiv_favorites import observe
+                observed_item = db.scalar(select(Item).where(Item.id == payload["item_id"]).with_for_update())
+                observe(db, observed_item, work, bookmark_owner, payload.get("pixiv_bookmark_state"))
         item = import_files(db, work.files, title=work.title, item_type=work.item_type, source=platform,
             source_id=work.remote_id, source_url=work.source_url, author=work.author,
             description=work.description, language=work.language, tags=None if split_accounts else work.tags,
@@ -403,12 +474,23 @@ def _import_content(db, payload, report, guard):
 
 
 def _sync(db, payload, report, guard):
+    if payload.get('pixiv_bookmark_scan') is True:
+        from .pixiv_collection import scan_page
+        return scan_page(db, payload, report, guard)
+    if payload.get("watchlist"):
+        from .watchlist import process
+        return process(db, payload, report, guard)
     platform = payload["platform"]
     if platform == "pixiv":
         from .pixiv_accounts import resolve_account_id
         payload = {**payload, "account_id": resolve_account_id(db, payload.get("account_id"))}
     connector = get_connector(platform, account_credentials(db, platform, payload.get("check_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
                               purpose="metadata", pinned=bool(payload.get("check_account_id"))))
+    bookmark_owner = None
+    if platform == "pixiv":
+        from .pixiv_favorites import request_account_id
+        bookmark_owner = request_account_id(db, payload.get("check_account_id") or payload.get("execution_account_id") or payload.get("account_id"),
+            pinned=bool(payload.get("check_account_id")))
     db.commit()
     if payload.get("subscription_id"):
         subscription = db.get(Subscription, payload["subscription_id"])
@@ -417,7 +499,8 @@ def _sync(db, payload, report, guard):
         db.commit()
         if platform == "pixiv":
             identities, has_more = connector.discover(subscription.target_type, subscription.target,
-                                                       content_scope=subscription.content_scope)
+                                                       content_scope=subscription.content_scope,
+                                                       include_author_bookmarks=subscription.target_type == "author")
         else:
             identities, has_more = connector.discover(subscription.target_type, subscription.target)
         report(85)
@@ -428,11 +511,22 @@ def _sync(db, payload, report, guard):
             return {"skipped": True, "message": "订阅已暂停或删除"}
         created = []
         for ident in dict.fromkeys(identities):
-            existing = db.scalar(select(Item).where(Item.source == platform, Item.source_id == ident))
-            if existing and (existing.assets or (not subscription.auto_download and existing.preview_cover)):
+            from .subscription_policy import wants_body
+            download = wants_body(subscription, ident, getattr(connector, "discovery_origins", None))
+            existing = db.scalar(select(Item).where(Item.source == platform, Item.source_id == ident).with_for_update())
+            hint = None
+            if platform == "pixiv":
+                state = getattr(connector, "bookmark_observations", {}).get(ident)
+                if type(state) is bool:
+                    hint = {"account_id": bookmark_owner, "bookmarked": state}
+                    if existing:
+                        from .pixiv_favorites import observe
+                        observe(db, existing, None, bookmark_owner, hint)
+            if existing and (existing.assets or (not download and existing.preview_cover)):
                 continue
             new_job = enqueue_import(db, {"platform": platform, "remote_id": ident,
-                "account_id": subscription.account_id, "download": subscription.auto_download}, commit=False, locked=True)
+                "account_id": subscription.account_id, "download": download,
+                **({"pixiv_bookmark_state": hint} if hint is not None else {})}, commit=False, locked=True)
             created.append(new_job.id)
         subscription.last_checked_at = utcnow()
         subscription.last_error = None
@@ -440,7 +534,8 @@ def _sync(db, payload, report, guard):
         db.commit()
         return {"subscription_id": subscription.id, "discovered": len(identities), "queued_jobs": created,
                 "latest_page_only": True, "has_more": has_more,
-                "message": "已检查最新一页；历史补全尚未实现"}
+                "message": ("已检查作者作品及公开收藏的最新一页；详情与封面已排队，不扩展收藏作品的作者；历史补全尚未实现"
+                            if platform == "pixiv" and subscription.target_type == "author" else "已检查最新一页；历史补全尚未实现")}
     if platform == "picacg":
         identities = connector.favorites(checkpoint=report)
         report(90)
@@ -472,9 +567,13 @@ def _sync(db, payload, report, guard):
             content_scope="all" if platform == "pixiv" and follow["target_type"] == "author" else "images",
             next_check_at=utcnow() + timedelta(minutes=5 + added)))
         added += 1
+    watchlist_job = None
+    if platform == "pixiv" and getattr(connector, "supports_watchlist", False):
+        from .watchlist import queue_sync
+        watchlist_job = queue_sync(db, automatic=True)
     guard(db)
     db.commit()
-    return {"added_subscriptions": added, "remote_follows": len(follows),
+    return {"added_subscriptions": added, "remote_follows": len(follows), "watchlist_job_id": watchlist_job.id if watchlist_job else None,
             "message": "关注作者已导入为本地订阅；默认仅建档元数据，不自动下载"}
 
 
@@ -486,13 +585,17 @@ def process_job(job_id):
             if not job or job.status != "running" or job.worker_id != current_worker_id():
                 return
             payload, kind = job.payload, job.kind
+            lane = queue_control.job_lane(job)
+            if payload.get("retry_queue") is True:
+                from .pixiv_accounts import validate_retry_assignment
+                validate_retry_assignment(db, job)
             progress = 0
             last_heartbeat = 0.0
             def report(value):
                 nonlocal progress, last_heartbeat
                 checkpoint(job_id, value)
                 progress, last_heartbeat = value, time.monotonic()
-                queue_control.check_paused(queue_control.job_lane(job))
+                queue_control.check_paused(lane)
             def heartbeat():
                 if time.monotonic() - last_heartbeat >= 1:
                     report(progress)
@@ -503,13 +606,16 @@ def process_job(job_id):
                     item.content_state, item.content_error, item.content_job_id = "downloading", None, job_id
             # End read transaction before long network/model work; no SQLite read lock held.
             db.commit()
-            with queue_control.request_context(heartbeat, queue_control.job_lane(job)) if kind in queue_control.ACQUISITION_KINDS else nullcontext():
+            with queue_control.request_context(heartbeat, lane) if kind in queue_control.ACQUISITION_KINDS else nullcontext():
                 if kind == "import":
                     result = _import(db, payload, report, guard, job_id)
                 elif kind == "import_content":
                     result = _import_content(db, payload, report, guard)
                 elif kind == "source_sync":
                     result = _sync(db, payload, report, guard)
+                elif kind == "pixiv_bookmark":
+                    from .pixiv_favorites import process as process_bookmark
+                    result = process_bookmark(db, payload, report, guard)
                 elif kind == "series_sync":
                     from app.series_service import sync_series
                     result = sync_series(db, payload, report, guard)
@@ -559,6 +665,9 @@ def process_job(job_id):
                 if subscription:
                     subscription.last_error = message[:1500]
                     subscription.last_checked_at = utcnow()
+                if job.payload.get("watchlist") or job.payload.get("watchlist_entry_id"):
+                    from .watchlist import failure
+                    failure(db, job, message)
                 db.commit()
                 sync_content_state(db, job_id)
 
@@ -583,6 +692,10 @@ def sync_content_state(db, job_id):
 
 
 def schedule_subscriptions(db, *, commit=True):
+    from .pixiv_collection import schedule as schedule_bookmarks
+    schedule_bookmarks(db)
+    from .watchlist import schedule
+    schedule(db)
     now = utcnow()
     subscriptions = db.scalars(select(Subscription).where(Subscription.enabled.is_(True),
         or_(Subscription.next_check_at.is_(None), Subscription.next_check_at <= now)).limit(20).with_for_update(skip_locked=True)).all()
@@ -618,15 +731,17 @@ def claim_once(allowed_lanes=None, *, preflight=False):
             control = db.get(queue_control.QueueControl, 1)
             if control:
                 limits = queue_control.lane_settings(control)
-                allowed = {key for key in allowed if not limits[key]["paused"] and not (control.paused and key in queue_control.NETWORK_LANES)}
+                allowed = {key for key in allowed if not limits[key]["paused"] and not (control.paused and key in queue_control.COLLECTION_LANES)}
             if not allowed:
                 return None
             expression = queue_control.lane_expression()
             scope = or_(*(queue_control.lane_clause(key) for key in allowed))
             queued = db.scalar(select(Job.id).where(Job.status == "queued", scope).limit(1))
             stale = db.scalar(select(Job.id).where(Job.status == "running", or_(Job.lease_until.is_(None), Job.lease_until < utcnow())).limit(1))
-            due = "checks" in allowed and db.scalar(select(Subscription.id).where(Subscription.enabled.is_(True),
-                    or_(Subscription.next_check_at.is_(None), Subscription.next_check_at <= utcnow())).limit(1))
+            from .watchlist import due as watchlist_due
+            from .pixiv_collection import due as bookmark_scan_due
+            due = "checks" in allowed and (db.scalar(select(Subscription.id).where(Subscription.enabled.is_(True),
+                    or_(Subscription.next_check_at.is_(None), Subscription.next_check_at <= utcnow())).limit(1)) or watchlist_due(db) or bookmark_scan_due(db))
             full = False
             if control and len(allowed) == 1 and not stale and not due:
                 key = next(iter(allowed))
@@ -650,7 +765,7 @@ def claim_once(allowed_lanes=None, *, preflight=False):
         limits = queue_control.lane_settings(control)
         counts = dict(db.execute(select(expression, func.count(Job.id)).where(Job.status == "running").group_by(expression)).all())
         available = [key for key, value in limits.items() if key in allowed and not value["paused"]
-                     and not (control.paused and key in queue_control.NETWORK_LANES)
+                     and not (control.paused and key in queue_control.COLLECTION_LANES)
                      and counts.get(key, 0) < value["concurrency"]]
         if "checks" in available:
             schedule_subscriptions(db, commit=False)

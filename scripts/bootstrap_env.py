@@ -15,7 +15,7 @@ if target.exists():
 values = {
     "MYSQL_PASSWORD": secrets.token_hex(24),
     "MYSQL_ROOT_PASSWORD": secrets.token_hex(32),
-    "LIBRARY_ADMIN_PASSWORD": secrets.token_urlsafe(24),
+    "LIBRARY_ADMIN_PASSWORD": secrets.token_urlsafe(15),
     "LIBRARY_SECRET_KEY": secrets.token_hex(32),
     "LIBRARY_PORT": "8800",
     "LIBRARY_DATA_PATH": "./data",

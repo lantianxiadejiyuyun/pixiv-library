@@ -13,6 +13,7 @@ export interface Item {
   id: string; title: string; type: ItemType; source: string; source_url?: string; description?: string;
   title_zh?: string | null; display_title?: string;
   author_source_id?: string | null;
+  source_published_at?: string | null;
   is_favorite?: boolean; favorite_group_ids?: string[]; user_score?: number; source_bookmark_count?: number | null;
   author?: string; language?: string; rating: Rating; tags: Tag[]; page_count: number; size_bytes: number;
   cover_url?: string | null; created_at: string; updated_at: string;
@@ -22,11 +23,11 @@ export interface Item {
 }
 export type ItemPreferencePatch = Pick<Item, 'id'> & Partial<Pick<Item, 'is_favorite' | 'favorite_group_ids' | 'user_score'>>
 export interface Dashboard {total_items: number; total_pages: number; total_bytes: number; pending_jobs: number; untagged_items: number; recent_items: Item[]; source_counts: Record<string, number>; rating_counts: Record<string, number>}
-export interface Job {queue?: string; id: string; kind: string; label?: string | null; status: string; progress: number; error?: string; item_id?: string | null; created_at: string; updated_at: string; result?: Record<string, unknown>}
+export interface Job {queue?: string; original_queue?: string | null; retry_last_error?: string | null; id: string; kind: string; label?: string | null; status: string; progress: number; error?: string; item_id?: string | null; created_at: string; updated_at: string; result?: Record<string, unknown>}
 export interface SourceAccount {id: string; label: string; auth_status?: string; verified_at?: string | null}
 export interface Source {platform: string; label: string; status: string; capabilities: {key: string; label: string; status: string}[]; accounts: SourceAccount[]; message?: string}
 export interface PlatformEndpoint {platform: string; label: string; default_url: string; custom_url: string | null; enabled: boolean; effective_url: string; description: string}
-export interface Subscription {id: string; platform: string; target_type: string; target: string; label: string; enabled: boolean; auto_download: boolean; content_scope?: ContentScope; last_checked_at?: string; last_error?: string; account_id?: string; interval_minutes?: number; next_check_at?: string; runtime_status?: string; status_message?: string}
+export interface Subscription {id: string; platform: string; target_type: string; target: string; label: string; enabled: boolean; auto_download: boolean; download_works?: boolean; download_bookmarks?: boolean; content_scope?: ContentScope; last_checked_at?: string; last_error?: string; account_id?: string; interval_minutes?: number; next_check_at?: string; runtime_status?: string; status_message?: string}
 export interface AIStatus {
   available: boolean; models: {id: string; label: string; available: boolean; message?: string}[]; message: string;
   requested_provider?: 'auto' | 'cpu' | 'cuda' | 'intel'; actual_provider?: string | null;
@@ -49,7 +50,7 @@ export const remotePlatforms = ['pixiv', 'ehentai', 'picacg', 'jm', 'kemono'] as
 export const sourceLabels: Record<string, string> = {local: '本地导入', pixiv: 'Pixiv', ehentai: 'E-Hentai', picacg: '哔咔 PicACG', jm: 'JM 漫画', kemono: 'Kemono'}
 export const ratingLabels: Record<string, string> = {unknown: '待分级', general: '普通', sensitive: '敏感', adult: 'R18'}
 export const jobStatusLabels: Record<string, string> = {queued: '排队中', running: '处理中', completed: '已完成', failed: '失败', cancelled: '已取消'}
-export const jobKindLabels: Record<string, string> = {import: '封面与基本信息', import_content: '正文下载', source_sync: '同步关注内容', series_sync: '获取系列目录', ai: 'AI 整理', translate: '标题与标签汉化', author_profile: '作者主页资料', author_feed: '作者作品／收藏目录'}
+export const jobKindLabels: Record<string, string> = {import: '封面与基本信息', import_content: '正文下载', source_sync: '同步关注内容', pixiv_bookmark: '同步主账号收藏', series_sync: '获取系列目录', ai: 'AI 整理', translate: '标题与标签汉化', author_profile: '作者主页资料', author_feed: '作者作品／收藏目录'}
 export const contentScopeLabels: Record<ContentScope, string> = {images: '插画 / 漫画', novels: '小说', all: '插画、漫画与小说'}
 export function contentCountLabel(item: Item) {
   if (item.type === 'novel' || item.type === 'article') return item.page_count ? `${item.page_count} 份正文` : '正文未下载'
@@ -70,4 +71,8 @@ export function bytes(value: number = 0) {
 export function date(value?: string) {
   if (!value) return '尚未同步'
   return new Intl.DateTimeFormat('zh-CN', {month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}).format(new Date(value))
+}
+export function publicationDate(value?: string | null) {
+  if (!value || !Number.isFinite(new Date(value).getTime())) return '暂无'
+  return new Intl.DateTimeFormat('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(value))
 }

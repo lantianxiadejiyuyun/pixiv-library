@@ -10,7 +10,14 @@ class Base(DeclarativeBase):
 
 
 connect_args = {"check_same_thread": False, "timeout": 30} if settings.database_url.startswith("sqlite") else {}
-pool_options = {"pool_size": 2, "max_overflow": 8, "pool_timeout": 10} if os.getenv("LIBRARY_WORKER_PROCESS") and not settings.database_url.startswith("sqlite") else {}
+def worker_pool_options():
+    # Eight task threads may each hold a transaction while opening a short
+    # checkpoint/pause-check session. Reserve two more for the dispatcher and
+    # scheduler. Overflow connections close on return; only two stay idle.
+    return {"pool_size": 2, "max_overflow": 16, "pool_timeout": 10}
+
+
+pool_options = worker_pool_options() if os.getenv("LIBRARY_WORKER_PROCESS") and not settings.database_url.startswith("sqlite") else {}
 engine = create_engine(settings.database_url, pool_pre_ping=True, connect_args=connect_args, **pool_options)
 if settings.database_url.startswith("sqlite"):
     @event.listens_for(engine, "connect")

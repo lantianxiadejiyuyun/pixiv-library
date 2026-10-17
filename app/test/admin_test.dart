@@ -73,6 +73,188 @@ Future<void> settle(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('retry permission uses a multi-account Pixiv picker', (
+    tester,
+  ) async {
+    final requests = <String>[];
+    final api = LibraryApi(
+      server: Uri.parse('https://library.test'),
+      client: MockClient((request) async {
+        requests.add(request.url.path);
+        return response([
+          {
+            'platform': 'pixiv',
+            'accounts': [
+              {'id': 'main', 'label': '主账号'},
+              {'id': 'helper', 'label': '副账号'},
+            ],
+          },
+          {
+            'platform': 'kemono',
+            'accounts': [
+              {'id': 'other', 'label': '其他平台账号'},
+            ],
+          },
+        ]);
+      }),
+    );
+    addTearDown(api.close);
+    final catalog = AdminCatalog.fromJson({
+      ...fixture(),
+      'labels': {'retry_account_ids': '失败重试账号'},
+    });
+    dynamic selected = ['main'];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (_, change) => AdminField(
+              api: api,
+              catalog: catalog,
+              name: 'retry_account_ids',
+              required: false,
+              schema: {
+                'type': 'array',
+                'items': {'type': 'string'},
+              },
+              resource: '/sources/pixiv/account-roles',
+              value: selected,
+              onChanged: (value) => change(() => selected = value),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('选择失败重试账号（1）'));
+    await settle(tester);
+    expect(requests, ['/api/sources']);
+    expect(find.text('Pixiv · 主账号'), findsOneWidget);
+    expect(find.text('Pixiv · 副账号'), findsOneWidget);
+    expect(find.textContaining('其他平台账号'), findsNothing);
+    final main = tester.widget<CheckboxListTile>(
+      find.widgetWithText(CheckboxListTile, 'Pixiv · 主账号'),
+    );
+    expect(main.value, true);
+    await tester.tap(find.text('Pixiv · 副账号'));
+    await tester.tap(find.text('完成'));
+    await settle(tester);
+    expect(selected, ['main', 'helper']);
+    expect(find.text('选择失败重试账号（2）'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'retry lane edits its own pause and concurrency while collection stays paused',
+    (tester) async {
+      final writes = <(String, JsonMap)>[];
+      final api = LibraryApi(
+        server: Uri.parse('https://library.test'),
+        client: MockClient((request) async {
+          if (request.method == 'GET') {
+            expect(request.url.path, '/api/queue/status');
+            return response({
+              'settings': {'paused': true, 'concurrency': 1},
+              'lanes': [
+                {'id': 'retry', 'paused': false, 'concurrency': 2},
+                {'id': 'download', 'paused': false, 'concurrency': 1},
+              ],
+            });
+          }
+          final body = jsonDecode(request.body) as JsonMap;
+          writes.add((request.url.path, body));
+          return response(body);
+        }),
+      );
+      addTearDown(api.close);
+      final edit = action(
+        'PUT',
+        '/queue/lanes/{lane}',
+        '修改队列',
+        body: queueBody,
+        parameters: [
+          {
+            'name': 'lane',
+            'location': 'path',
+            'required': true,
+            'schema': {
+              'type': 'string',
+              'enum': ['download', 'retry'],
+            },
+          },
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminOperationPage(
+            api: api,
+            catalog: AdminCatalog.fromJson(
+              fixture(actions: [action('GET', '/queue/status', '查看队列'), edit]),
+            ),
+            action: edit,
+            initial: {'lane': 'retry'},
+          ),
+        ),
+      );
+      await settle(tester);
+      expect(find.text('失败重试'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      final pause = find.byType(DropdownButtonFormField<bool>);
+      expect(
+        tester.widget<DropdownButtonFormField<bool>>(pause).initialValue,
+        false,
+      );
+      await tester.tap(pause);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('是').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), '4');
+      await tester.ensureVisible(find.bySubtype<FilledButton>());
+      await tester.tap(find.bySubtype<FilledButton>());
+      await settle(tester);
+      expect(writes, hasLength(1));
+      expect(writes.single.$1, '/api/queue/lanes/retry');
+      expect(writes.single.$2, {'paused': true, 'concurrency': 4});
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('AI node picker uses controller nodes instead of proxy nodes', (
+    tester,
+  ) async {
+    final requests = <String>[];
+    final api = LibraryApi(
+      server: Uri.parse('https://library.test'),
+      client: MockClient((request) async {
+        requests.add(request.url.path);
+        return response({
+          'items': [
+            {'id': 'ai-node', 'label': 'AI Computer', 'enabled': true},
+          ],
+        });
+      }),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdminEntityPicker(
+            api: api,
+            catalog: AdminCatalog.fromJson(fixture()),
+            name: 'node_id',
+            resource: '/ai/nodes/{node_id}/models',
+            multiple: false,
+            selected: const [],
+          ),
+        ),
+      ),
+    );
+    await settle(tester);
+    expect(requests, ['/api/ai/nodes']);
+    expect(find.textContaining('AI Computer'), findsWidgets);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    api.close();
+  });
+
   test(
     'administrator cookie stays separate from reader token and is dropped on close',
     () async {

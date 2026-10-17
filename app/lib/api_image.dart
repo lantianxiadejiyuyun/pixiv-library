@@ -10,6 +10,7 @@ class ApiImage extends StatefulWidget {
   /// Fit the available width while preserving the complete page's aspect ratio.
   final bool naturalHeight;
   final VoidCallback? onReady;
+  final ValueChanged<double>? onAspectRatio;
   const ApiImage({
     super.key,
     required this.api,
@@ -17,6 +18,7 @@ class ApiImage extends StatefulWidget {
     this.fit = BoxFit.cover,
     this.naturalHeight = false,
     this.onReady,
+    this.onAspectRatio,
   });
   @override
   State<ApiImage> createState() => _ApiImageState();
@@ -25,7 +27,43 @@ class ApiImage extends StatefulWidget {
 class _ApiImageState extends State<ApiImage> {
   late Future<Uint8List> _bytes;
   bool _reportedReady = false;
+  ImageStream? _sizeStream;
+  ImageStreamListener? _sizeListener;
+
+  void _clearSizeListener() {
+    if (_sizeListener != null) _sizeStream?.removeListener(_sizeListener!);
+    _sizeStream = null;
+    _sizeListener = null;
+  }
+
+  void _observeSize(ImageProvider provider) {
+    if (widget.onAspectRatio == null) return;
+    final stream = provider.resolve(createLocalImageConfiguration(context));
+    if (_sizeStream?.key == stream.key) return;
+    _clearSizeListener();
+    _sizeStream = stream;
+    double? reported;
+    _sizeListener = ImageStreamListener(
+      (info, _) {
+        final ratio = info.image.width / info.image.height;
+        info.dispose();
+        if (reported == ratio) return;
+        reported = ratio;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && identical(_sizeStream, stream)) {
+            widget.onAspectRatio?.call(ratio);
+          }
+        });
+      },
+      onError: (Object error, StackTrace? stack) {
+        // Image's errorBuilder owns the retry UI.
+      },
+    );
+    stream.addListener(_sizeListener!);
+  }
+
   void _retry({bool evict = false}) {
+    _clearSizeListener();
     final api = widget.api;
     final path = widget.path;
     setState(() {
@@ -68,9 +106,16 @@ class _ApiImageState extends State<ApiImage> {
   void didUpdateWidget(covariant ApiImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.path != widget.path || oldWidget.api != widget.api) {
+      _clearSizeListener();
       _reportedReady = false;
       _bytes = widget.api.image(widget.path);
     }
+  }
+
+  @override
+  void dispose() {
+    _clearSizeListener();
+    super.dispose();
   }
 
   @override
@@ -93,8 +138,17 @@ class _ApiImageState extends State<ApiImage> {
             ? const AspectRatio(aspectRatio: 2 / 3, child: loading)
             : loading;
       }
-      return Image.memory(
-        snapshot.data!,
+      final provider = ResizeImage.resizeIfNeeded(
+        (MediaQuery.sizeOf(context).width *
+                MediaQuery.devicePixelRatioOf(context))
+            .ceil()
+            .clamp(480, 2048),
+        null,
+        MemoryImage(snapshot.data!),
+      );
+      _observeSize(provider);
+      return Image(
+        image: provider,
         fit: widget.fit,
         width: widget.naturalHeight ? double.infinity : null,
         frameBuilder: widget.naturalHeight
@@ -110,11 +164,6 @@ class _ApiImageState extends State<ApiImage> {
               }
             : null,
         gaplessPlayback: true,
-        cacheWidth:
-            (MediaQuery.sizeOf(context).width *
-                    MediaQuery.devicePixelRatioOf(context))
-                .ceil()
-                .clamp(480, 2048),
         errorBuilder: (_, _, _) => _retryButton(evict: true),
       );
     },

@@ -68,6 +68,8 @@ class SubscriptionInput(BaseModel):
     label: str = Field(default="", max_length=191)
     enabled: bool = True
     auto_download: bool = False
+    download_works: bool | None = None
+    download_bookmarks: bool | None = None
     content_scope: Literal["images", "novels", "all"] | None = None
     account_id: str | None = None
     interval_minutes: int = Field(default=360, ge=30, le=10080)
@@ -78,6 +80,8 @@ class SubscriptionPatch(BaseModel):
     label: str | None = Field(default=None, max_length=191)
     enabled: bool | None = None
     auto_download: bool | None = None
+    download_works: bool | None = None
+    download_bookmarks: bool | None = None
     content_scope: Literal["images", "novels", "all"] | None = None
     account_id: str | None = None
     interval_minutes: int | None = Field(default=None, ge=30, le=10080)
@@ -101,17 +105,22 @@ def validate_account(db, platform, account_id):
 
 
 def subscription_view(value):
+    from .subscription_policy import flags
+    options = flags(value)
     ready = get_connector(value.platform).supports_subscriptions
+    scope_message = ("检查作者作品及公开收藏的最新一页；不扩展收藏作品的作者；历史补全待实现"
+                     if value.platform == "pixiv" and value.target_type == "author" else "定时检查最新一页；历史补全待实现")
     return {"id": value.id, "platform": value.platform, "target_type": value.target_type,
             "target": value.target, "label": value.label, "enabled": value.enabled,
-            "auto_download": value.auto_download, "account_id": value.account_id, "content_scope": value.content_scope,
+            "auto_download": any(options.values()) if value.platform == "pixiv" and value.target_type == "author" else value.auto_download,
+            **options, "account_id": value.account_id, "content_scope": value.content_scope,
             "interval_minutes": value.interval_minutes,
             "created_at": value.created_at.isoformat() + "Z", "updated_at": value.updated_at.isoformat() + "Z",
             "last_checked_at": value.last_checked_at.isoformat() + "Z" if value.last_checked_at else None,
             "next_check_at": value.next_check_at.isoformat() + "Z" if value.next_check_at else None,
             "last_error": value.last_error,
             "runtime_status": "paused" if not value.enabled else ("active" if ready else "pending"),
-            "status_message": "定时检查最新一页；历史补全待实现" if ready else "规则已保存，平台定时检查待实现"}
+            "status_message": scope_message if ready else "规则已保存，平台定时检查待实现"}
 
 
 @router.get("/sources")
@@ -174,7 +183,13 @@ def source_import(platform: str, value: ImportInput, db=Depends(get_db)):
             connector.validate_credentials()
     except (ConnectorError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
-    return job_view(enqueue_import(db, {"platform": platform, "remote_id": remote_id, "account_id": value.account_id}))
+    if platform == "pixiv":
+        try:
+            account_credentials(db, platform, value.account_id, purpose="manual")
+        except ConnectorError as exc:
+            raise HTTPException(409, str(exc)) from None
+    return job_view(enqueue_import(db, {"platform": platform, "remote_id": remote_id, "account_id": value.account_id,
+                                     "download_origin": "manual"}))
 
 
 @router.post("/items/{item_id}/download")
@@ -188,8 +203,13 @@ def download_item(item_id: str, value: SyncInput | None = None, db=Depends(get_d
         raise HTTPException(409, "正文已经保存；缺失文件请检查存储或恢复备份")
     account_id = value.account_id if value else None
     validate_account(db, item.source, account_id)
+    if item.source == "pixiv":
+        try:
+            account_credentials(db, "pixiv", account_id, purpose="manual")
+        except ConnectorError as exc:
+            raise HTTPException(409, str(exc)) from None
     return job_view(enqueue_import(db, {"platform": item.source, "remote_id": item.source_id,
-                                     "item_id": item.id, "account_id": account_id, "download": True}))
+                                     "item_id": item.id, "account_id": account_id, "download": True, "download_origin": "manual"}))
 
 
 @router.get("/queue/settings")
@@ -215,7 +235,7 @@ def queue_status(db=Depends(get_db)):
     lane_counts = {(lane, status): count for lane, status, count in db.execute(select(expression, Job.status, func.count(Job.id)).group_by(expression, Job.status))}
     row = db.get(queue_control.QueueControl, 1)
     lanes = [{"id": key, "label": label, **queue_control.lane_settings(row)[key],
-              "blocked_by_master": control["paused"] and key in queue_control.NETWORK_LANES,
+              "blocked_by_master": control["paused"] and key in queue_control.COLLECTION_LANES,
               "counts": {status: lane_counts.get((key, status), 0) for status in ("queued", "running", "failed", "completed")}}
              for key, label in queue_control.LANES.items()]
     return {"settings": control, "counts": {key: counts.get(key, 0) for key in ("queued", "running", "failed")},
@@ -315,6 +335,17 @@ def retry_job(job_id: str, db=Depends(get_db)):
             Job.payload["series_kind"].as_string() == job.payload.get("series_kind")).with_for_update())
         if duplicate:
             return job_view(duplicate)
+    if job.kind == "pixiv_bookmark":
+        from .pixiv_favorites import main_account_id
+        main = main_account_id(db)
+        if not main:
+            raise HTTPException(409, "请先配置 Pixiv 主账号")
+        duplicate = db.scalar(select(Job).where(Job.id != job.id, Job.kind == "pixiv_bookmark",
+            Job.status.in_(("queued", "running")), Job.payload["item_id"].as_string() == job.payload.get("item_id"),
+            Job.payload["main_account_id"].as_string() == main).with_for_update())
+        if duplicate:
+            return job_view(duplicate)
+        job.payload = {**job.payload, "main_account_id": main, "account_id": main}
     if job.kind in ("import", "import_content"):
         duplicate = db.scalar(select(Job).where(Job.id != job.id,
             Job.kind.in_(("import", "import_content")), Job.status.in_(("queued", "running")),
@@ -326,6 +357,8 @@ def retry_job(job_id: str, db=Depends(get_db)):
         item = db.scalar(select(Item).where(Item.id == item_id).with_for_update()) if item_id else None
         if item is not None and not item.assets and (job.kind == "import_content" or job.payload.get("download", True)):
             item.content_job_id = job.id
+    job.payload = {**job.payload, "retry_queue": True,
+                   "retry_last_error": job.error or job.payload.get("retry_last_error")}
     job.status, job.error, job.result, job.progress = "queued", None, None, 0
     if job.payload.get("platform") == "pixiv" or job.kind in ("author_profile", "author_feed", "series_sync"):
         job.payload = {key: value for key, value in job.payload.items() if key not in ("download_account_id", "details_account_id", "check_account_id", "execution_account_id")}
@@ -396,6 +429,8 @@ def patch_subscription(subscription_id: str, value: SubscriptionPatch, db=Depend
     if not item:
         raise HTTPException(404, "订阅不存在")
     changes = value.model_dump(exclude_unset=True)
+    if "auto_download" in changes and not {"download_works", "download_bookmarks"} & changes.keys():
+        item.download_works = item.download_bookmarks = None
     if item.platform != "pixiv" and changes.get("content_scope", "images") not in (None, "images"):
         raise HTTPException(400, "当前仅 Pixiv 支持小说订阅范围")
     if "account_id" in changes:
@@ -422,8 +457,9 @@ def delete_subscription(subscription_id: str, db=Depends(get_db)):
 
 
 @router.get("/ai/status")
-def ai_status():
-    return model_status()
+def ai_status(db=Depends(get_db)):
+    from .ai_nodes import image_status
+    return image_status(db) or model_status()
 
 
 @router.post("/ai/analyze")

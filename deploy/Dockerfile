@@ -36,8 +36,11 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
         else pip install --no-cache-dir -r /tmp/requirements-ai.txt; fi; \
     fi
 COPY server/ /app/server/
+COPY deploy/compose.ai-node*.yaml deploy/Dockerfile.ai-controller deploy/Dockerfile.ai-controller.dockerignore deploy/ai-node.env.example /app/deploy/
+COPY docs/AI_NODES.md /app/docs/AI_NODES.md
 COPY scripts/container-start.sh /app/container-start.sh
 COPY scripts/smoke_mihomo.py scripts/install_mihomo.py scripts/install_intel_opencl.py scripts/backup.py scripts/compose.py /app/scripts/
+COPY scripts/ai_node.py scripts/bootstrap_ai_node.py /app/scripts/
 COPY --from=web /web/dist /app/web/dist
 RUN useradd --create-home --uid 10001 library && \
     mkdir -p /library/data /library/imports /library/models /library/proxy && \

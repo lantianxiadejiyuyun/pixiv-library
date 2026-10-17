@@ -8,6 +8,8 @@ import 'app_update.dart';
 import 'image_cache_card.dart';
 import 'platform_endpoints_screen.dart';
 import 'admin_screen.dart';
+import 'server_speed_screen.dart';
+import 'pixiv_direct_api.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -92,6 +94,19 @@ class _QiyeAppState extends State<QiyeApp> {
       }
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
+      _navigator.currentState?.popUntil((route) => route.isFirst);
+      if (_session != null) {
+        final direct = PixivDirectApi(
+          store: SecurePixivTokenStore(_session!.server),
+          scope: _session!.server.origin,
+        );
+        try {
+          await direct.restore();
+          await direct.logout();
+        } finally {
+          direct.close();
+        }
+      }
       await widget.store.clear();
       if (!mounted) return false;
       _navigator.currentState?.popUntil((route) => route.isFirst);
@@ -297,6 +312,20 @@ class _ServerScreenState extends State<ServerScreen> {
             child: LinearProgressIndicator(),
           ),
         const SizedBox(height: 28),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.speed_outlined),
+            title: const Text('服务器测速'),
+            subtitle: const Text('测试手机到服务器的延迟、下载和上传速度'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ServerSpeedScreen(api: widget.api),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         Card(
           child: ListTile(
             leading: const Icon(Icons.admin_panel_settings_outlined),

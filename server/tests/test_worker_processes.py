@@ -20,7 +20,7 @@ from test_library import client
 def test_auto_placement_keeps_api_and_every_lane_disjoint_on_16_cpus():
     plan = cpu_affinity.plan(range(16))
     assert plan['api'] == [0, 1]
-    assert len(plan['ai']) == 4
+    assert len(plan['ai']) == 14 - (len(cpu_affinity.ROLES) - 2) * len(plan['download'])
     assert set(sum(plan.values(), [])) == set(range(16))
     assert not cpu_affinity.shared(plan)
 
@@ -44,7 +44,7 @@ def test_small_nas_and_sparse_cpuset_never_select_inaccessible_cpus(count):
     plan = cpu_affinity.plan(available)
     assert set(plan) == set(cpu_affinity.ROLES)
     assert all(ids and set(ids) <= set(available) for ids in plan.values())
-    assert cpu_affinity.shared(plan) == (count < 7)
+    assert cpu_affinity.shared(plan) == (count < len(cpu_affinity.ROLES))
     if count > 1:
         assert all(not set(ids) & set(plan['api']) for role, ids in plan.items() if role != 'api')
 
@@ -178,12 +178,12 @@ def test_real_processes_are_separate_restart_and_stop_without_touching_queue_pre
         worker.start()
         def ready():
             values = worker.status()['workers']
-            return len(values) == 6 and all(value['state'] == 'running' for value in values)
+            return len(values) == len(cpu_affinity.ROLES)-1 and all(value['state'] == 'running' for value in values)
         deadline = time.monotonic()+25
         while not ready() and time.monotonic() < deadline: time.sleep(.1)
         assert ready(), worker.status()
         processes = [row['process'] for row in worker.workers.values()]
-        assert len({process.pid for process in processes} | {os.getpid()}) == 7
+        assert len({process.pid for process in processes} | {os.getpid()}) == len(cpu_affinity.ROLES)
         original = worker.workers['download']['process']
         original.terminate(); original.wait(timeout=5)
         deadline = time.monotonic()+15

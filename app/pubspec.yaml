@@ -1,7 +1,7 @@
 name: qiye_library
 description: 栖页独立阅读客户端
 publish_to: none
-version: 0.7.0+16
+version: 0.8.7+25
 environment:
   sdk: '>=3.8.0 <4.0.0'
 dependencies:

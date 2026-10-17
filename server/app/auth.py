@@ -58,6 +58,8 @@ def verify_origin(request: Request) -> None:
     """Protect cookie-authenticated mutations, including login, against CSRF."""
     if request.method in {"GET", "HEAD", "OPTIONS"}:
         return
+    if "*" in settings.allowed_origins:
+        return
     if request.headers.get("sec-fetch-site") == "cross-site":
         raise HTTPException(403, "不允许跨站写入请求")
     origin = request.headers.get("origin")

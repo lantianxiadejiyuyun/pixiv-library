@@ -235,7 +235,7 @@ def test_worker_pool_starts_once_and_stops_all_lanes(client, monkeypatch):
         nonlocal count
         with mutex:
             count += 1
-            if count == 48:
+            if count == queue_control.MAX_CONCURRENCY * len(queue_control.LANES):
                 entered.set()
         jobs._stop.wait(5)
     monkeypatch.setattr(jobs, "_loop", idle)
@@ -243,7 +243,7 @@ def test_worker_pool_starts_once_and_stops_all_lanes(client, monkeypatch):
         jobs.start_worker()
         assert entered.wait(3)
         jobs.start_worker()
-        assert count == 48 and len(jobs._threads) == 48
+        assert count == queue_control.MAX_CONCURRENCY * len(queue_control.LANES) and len(jobs._threads) == queue_control.MAX_CONCURRENCY * len(queue_control.LANES)
     finally:
         jobs.stop_worker()
     assert all(not thread.is_alive() for thread in jobs._threads)

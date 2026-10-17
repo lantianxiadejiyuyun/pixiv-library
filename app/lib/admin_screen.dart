@@ -876,6 +876,10 @@ class AdminField extends StatelessWidget {
     'main_account_id',
     'content_account_id',
     'content_account_ids',
+    'manual_account_ids',
+    'retry_account_ids',
+    'controller_node_id',
+    'image_node_id',
     'detail_account_ids',
     'check_account_ids',
     'item_id',
@@ -1375,13 +1379,20 @@ String adminChoice(String value) =>
       'sensitive': '敏感',
       'adult': 'R18',
       'unknown': '未分类',
-      'download': '内容下载',
+      'retry': '失败重试',
+      'manual_download': '手动下载',
+      'download': '自动下载',
       'details': '作品详情',
       'checks': '作者与订阅检查',
       'ai': 'AI 识别',
       'translation': 'AI 汉化',
       'other': '其他',
       'ollama': '本地 Ollama',
+      'controller': '远程 AI 控制器',
+      'vision': '图像识别服务',
+      'start': '启动',
+      'stop': '停止',
+      'restart': '重启',
       'openai': '兼容 OpenAI 的模型接口',
       'queued': '等待中',
       'running': '运行中',
@@ -1446,11 +1457,22 @@ class _AdminEntityPickerState extends State<AdminEntityPicker> {
       final name = widget.name;
       dynamic data;
       List<JsonMap> rows;
-      if (name.contains('account')) {
+      if (name == 'controller_node_id' ||
+          name == 'image_node_id' ||
+          (name == 'node_id' && widget.resource.startsWith('/ai/nodes'))) {
+        data = await widget.api.get('/ai/nodes');
+        rows = (data['items'] as List).cast<JsonMap>();
+      } else if (name.contains('account')) {
+        final selectedPlatform =
+            widget.platform ??
+            (widget.resource == '/sources/pixiv/account-roles'
+                ? 'pixiv'
+                : null);
         data = await widget.api.get('/sources');
         rows = [
           for (final platform in (data as List).where(
-            (p) => widget.platform == null || p['platform'] == widget.platform,
+            (p) =>
+                selectedPlatform == null || p['platform'] == selectedPlatform,
           ))
             for (final account in platform['accounts'] as List)
               {

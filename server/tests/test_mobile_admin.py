@@ -47,7 +47,7 @@ def test_existing_administration_routes_are_exposed_without_new_execution_surfac
         'POST /api/auth/login', 'POST /api/auth/logout', 'POST /api/devices/pairing/exchange',
         'POST /api/devices/disconnect', 'PUT /api/items/{item_id}/progress',
         'PUT /api/items/{item_id}/favorite', 'PUT /api/items/{item_id}/score',
-        'POST /api/items/{item_id}/visit',
+        'POST /api/items/{item_id}/visit', 'POST /api/network/speed/upload', 'POST /api/pixiv/direct/credentials',
     }
     for path, operations in app.openapi()['paths'].items():
         for method in operations:

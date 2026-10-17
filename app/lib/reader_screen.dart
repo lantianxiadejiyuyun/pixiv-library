@@ -159,11 +159,19 @@ class _ReaderScreenState extends State<ReaderScreen>
         (_page == page && (_offset - offset).abs() < .005)) {
       return;
     }
-    setState(() {
+    void updatePosition() {
       _page = page;
       _chapter = 0;
       _offset = offset;
-    });
+    }
+
+    // Fractional flow progress changes every scroll frame, but the controls
+    // only change on page boundaries. Do not rebuild the entire reader for it.
+    if (_page != page || !_dirty) {
+      setState(updatePosition);
+    } else {
+      updatePosition();
+    }
     _changed();
   }
 
@@ -746,208 +754,227 @@ class _ReaderScreenState extends State<ReaderScreen>
         ),
         body: IgnorePointer(
           ignoring: _leaving,
-          child: Column(
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              if (_saveError != null)
-                Material(
-                  color: colors.errorContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _saveError!,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: colors.onErrorContainer,
+              // Save feedback must not resize or recreate the reading viewport.
+              // In particular, a late failure near the bottom of a comic must
+              // not change its scroll extents while the reader reverses a drag.
+              Column(
+                children: [
+                  Expanded(
+                    child: !_item.readable
+                        ? const Center(child: Text('正文尚不可阅读，请返回作品详情'))
+                        : _loading || (!_text && !_modeReady)
+                        ? const Center(child: CircularProgressIndicator())
+                        : _error != null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(_error!, textAlign: TextAlign.center),
+                                  const SizedBox(height: 12),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        _loadText(_chapter, _offset),
+                                    child: const Text('重试'),
+                                  ),
+                                ],
+                              ),
                             ),
+                          )
+                        : _text
+                        ? _chapters.isEmpty
+                              ? const SizedBox.shrink()
+                              : SelectionArea(
+                                  child: NovelReaderBody(
+                                    key: ValueKey((_item.id, _page)),
+                                    text: _chapters[_chapter].text,
+                                    title: _chapters[_chapter].title.isEmpty
+                                        ? '第 ${_chapter + 1} 节'
+                                        : _chapters[_chapter].title,
+                                    fontSize: _fontSize,
+                                    restoreOffset: _offset,
+                                    restoreRevision: _textRestoreRevision,
+                                    controller: _textScroll,
+                                    onLayoutStart: () => _restoring = true,
+                                    onLayoutReady: () => _restoring = false,
+                                    footer: atEnd
+                                        ? OutlinedButton.icon(
+                                            onPressed: () {
+                                              setState(() => _offset = 1);
+                                              _changed();
+                                              _flush();
+                                            },
+                                            icon: const Icon(Icons.done_all),
+                                            label: Text(
+                                              _offset >= 1
+                                                  ? '已到达末尾 · 再次保存'
+                                                  : '标记读完',
+                                            ),
+                                          )
+                                        : FilledButton.tonalIcon(
+                                            onPressed: _next,
+                                            icon: const Icon(
+                                              Icons.arrow_forward,
+                                            ),
+                                            label: const Text('下一节'),
+                                          ),
+                                  ),
+                                )
+                        : _flow
+                        ? ComicFlowReader(
+                            key: ValueKey(_item.id),
+                            api: widget.api,
+                            itemId: _item.id,
+                            assets: _item.assets,
+                            initialPage: _page,
+                            initialOffset: _offset,
+                            controller: _flowController,
+                            onPosition: _flowPosition,
+                          )
+                        : PageView.builder(
+                            key: ValueKey(_item.id),
+                            controller: _pages,
+                            itemCount: _item.assets.length,
+                            onPageChanged: _imagePageChanged,
+                            itemBuilder: (_, page) {
+                              final asset = _item.assets[page];
+                              if (asset.mimeType.startsWith('video/')) {
+                                final itemId = _item.id;
+                                return VideoAssetPlayer(
+                                  key: ValueKey((_item.id, asset.id)),
+                                  api: widget.api,
+                                  assetId: asset.id,
+                                  active: page == _page,
+                                  initialOffset: page == _page ? _offset : 0,
+                                  playback: _videoPlayback,
+                                  onPosition: (offset, immediate) =>
+                                      _videoPosition(
+                                        itemId,
+                                        page,
+                                        offset,
+                                        immediate,
+                                      ),
+                                );
+                              }
+                              if (!asset.mimeType.startsWith('image/')) {
+                                return Center(
+                                  child: TextButton(
+                                    onPressed: () => _changeAsset(page),
+                                    child: const Text('打开正文文件'),
+                                  ),
+                                );
+                              }
+                              return InteractiveViewer(
+                                minScale: 1,
+                                maxScale: 5,
+                                child: SizedBox.expand(
+                                  child: ApiImage(
+                                    key: ValueKey(asset.id),
+                                    api: widget.api,
+                                    path: '/assets/${asset.id}/content',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                        TextButton(
-                          onPressed: _saving ? null : _flush,
-                          child: const Text('重试'),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-              Expanded(
-                child: !_item.readable
-                    ? const Center(child: Text('正文尚不可阅读，请返回作品详情'))
-                    : _loading || (!_text && !_modeReady)
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
                             children: [
-                              Text(_error!, textAlign: TextAlign.center),
-                              const SizedBox(height: 12),
-                              FilledButton(
-                                onPressed: () => _loadText(_chapter, _offset),
-                                child: const Text('重试'),
+                              IconButton(
+                                tooltip: _text ? '上一节' : '上一 P',
+                                onPressed:
+                                    !_loading &&
+                                        (_page > 0 || (_text && _chapter > 0))
+                                    ? _previous
+                                    : null,
+                                icon: const Icon(Icons.chevron_left),
+                              ),
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: _loading ? null : _directory,
+                                  child: Text(
+                                    _text
+                                        ? '第 ${_chapter + 1} / ${_chapters.length} 节'
+                                        : '第 ${_page + 1} / ${_item.assets.length} P',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: _text ? '下一节' : '下一 P',
+                                onPressed:
+                                    !_loading &&
+                                        (_page < _item.assets.length - 1 ||
+                                            (_text &&
+                                                _chapter <
+                                                    _chapters.length - 1))
+                                    ? _next
+                                    : null,
+                                icon: const Icon(Icons.chevron_right),
                               ),
                             ],
                           ),
-                        ),
-                      )
-                    : _text
-                    ? _chapters.isEmpty
-                          ? const SizedBox.shrink()
-                          : SelectionArea(
-                              child: NovelReaderBody(
-                                key: ValueKey((_item.id, _page)),
-                                text: _chapters[_chapter].text,
-                                title: _chapters[_chapter].title.isEmpty
-                                    ? '第 ${_chapter + 1} 节'
-                                    : _chapters[_chapter].title,
-                                fontSize: _fontSize,
-                                restoreOffset: _offset,
-                                restoreRevision: _textRestoreRevision,
-                                controller: _textScroll,
-                                onLayoutStart: () => _restoring = true,
-                                onLayoutReady: () => _restoring = false,
-                                footer: atEnd
-                                    ? OutlinedButton.icon(
-                                        onPressed: () {
-                                          setState(() => _offset = 1);
-                                          _changed();
-                                          _flush();
-                                        },
-                                        icon: const Icon(Icons.done_all),
-                                        label: Text(
-                                          _offset >= 1
-                                              ? '已到达末尾 · 再次保存'
-                                              : '标记读完',
-                                        ),
-                                      )
-                                    : FilledButton.tonalIcon(
-                                        onPressed: _next,
-                                        icon: const Icon(Icons.arrow_forward),
-                                        label: const Text('下一节'),
-                                      ),
-                              ),
-                            )
-                    : _flow
-                    ? ComicFlowReader(
-                        key: ValueKey(_item.id),
-                        api: widget.api,
-                        itemId: _item.id,
-                        assets: _item.assets,
-                        initialPage: _page,
-                        initialOffset: _offset,
-                        controller: _flowController,
-                        onPosition: _flowPosition,
-                      )
-                    : PageView.builder(
-                        key: ValueKey(_item.id),
-                        controller: _pages,
-                        itemCount: _item.assets.length,
-                        onPageChanged: _imagePageChanged,
-                        itemBuilder: (_, page) {
-                          final asset = _item.assets[page];
-                          if (asset.mimeType.startsWith('video/')) {
-                            final itemId = _item.id;
-                            return VideoAssetPlayer(
-                              key: ValueKey((_item.id, asset.id)),
-                              api: widget.api,
-                              assetId: asset.id,
-                              active: page == _page,
-                              initialOffset: page == _page ? _offset : 0,
-                              playback: _videoPlayback,
-                              onPosition: (offset, immediate) => _videoPosition(
-                                itemId,
-                                page,
-                                offset,
-                                immediate,
-                              ),
-                            );
-                          }
-                          if (!asset.mimeType.startsWith('image/')) {
-                            return Center(
-                              child: TextButton(
-                                onPressed: () => _changeAsset(page),
-                                child: const Text('打开正文文件'),
-                              ),
-                            );
-                          }
-                          return InteractiveViewer(
-                            minScale: 1,
-                            maxScale: 5,
-                            child: SizedBox.expand(
-                              child: ApiImage(
-                                key: ValueKey(asset.id),
-                                api: widget.api,
-                                path: '/assets/${asset.id}/content',
-                                fit: BoxFit.contain,
-                              ),
+                          Text(
+                            '${(_percent * 100).round()}%${_saving
+                                ? ' · 保存中…'
+                                : _saveError != null
+                                ? ' · 进度未保存'
+                                : _dirty
+                                ? ' · 待保存'
+                                : ''}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: colors.onSurfaceVariant,
                             ),
-                          );
-                        },
-                      ),
-              ),
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            tooltip: _text ? '上一节' : '上一 P',
-                            onPressed:
-                                !_loading &&
-                                    (_page > 0 || (_text && _chapter > 0))
-                                ? _previous
-                                : null,
-                            icon: const Icon(Icons.chevron_left),
-                          ),
-                          Expanded(
-                            child: TextButton(
-                              onPressed: _loading ? null : _directory,
-                              child: Text(
-                                _text
-                                    ? '第 ${_chapter + 1} / ${_chapters.length} 节'
-                                    : '第 ${_page + 1} / ${_item.assets.length} P',
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: _text ? '下一节' : '下一 P',
-                            onPressed:
-                                !_loading &&
-                                    (_page < _item.assets.length - 1 ||
-                                        (_text &&
-                                            _chapter < _chapters.length - 1))
-                                ? _next
-                                : null,
-                            icon: const Icon(Icons.chevron_right),
                           ),
                         ],
                       ),
-                      Text(
-                        '${(_percent * 100).round()}%${_saving
-                            ? ' · 保存中…'
-                            : _saveError != null
-                            ? ' · 进度未保存'
-                            : _dirty
-                            ? ' · 待保存'
-                            : ''}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colors.onSurfaceVariant,
-                        ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_saveError != null)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Material(
+                    color: colors.errorContainer,
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _saveError!,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colors.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _saving ? null : _flush,
+                            child: const Text('重试'),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

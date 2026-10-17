@@ -45,6 +45,8 @@ class RemoteWork:
     source_series: dict | None = None
     author_id: str | None = None
     bookmark_count: int | None = None
+    is_bookmarked: bool | None = None
+    source_published_at: datetime | None = None
 
 
 def validate_url(url: str, hosts: tuple[str, ...], resolve=False) -> str:

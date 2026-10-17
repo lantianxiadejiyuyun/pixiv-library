@@ -230,7 +230,7 @@ def native_dump(monkeypatch, mysql_mode):
         pooled.driver_connection = native
         return SimpleNamespace(raw_connection=lambda: pooled, dispose=dispose)
     monkeypatch.setattr(export, "create_engine", private_engine)
-    monkeypatch.setattr(export, "Base", SimpleNamespace(metadata=SimpleNamespace(tables={"items": object()})))
+    monkeypatch.setattr(export, "Base", SimpleNamespace(metadata=SimpleNamespace(tables={"items": SimpleNamespace(columns=[SimpleNamespace(name='id', computed=None)])})))
     return native, state, mysql_mode
 
 
@@ -248,6 +248,29 @@ def test_dump_uses_snapshot_show_create_and_unbuffered_rows(native_dump):
     assert len(native.streaming_cursors) == 2
     assert not native.open and state == {"invalidated": True, "disposed": True}
     assert not any(line.startswith(("DROP ", "USE ", "CREATE DATABASE")) for line in sql.splitlines())
+
+
+def test_generated_columns_keep_definition_but_are_not_inserted(native_dump):
+    native, _, engine = native_dump
+    export.Base.metadata.tables['items'].columns.append(SimpleNamespace(name='queue_lane', computed=object()))
+    original = native.cursor
+    def cursor(kind=None):
+        result = original(kind)
+        execute = result.execute
+        def run(sql):
+            execute(sql)
+            if sql == 'SELECT * FROM `items` LIMIT 0':
+                result.description = [('id',), ('queue_lane',)]
+            if sql == 'SHOW CREATE TABLE `items`':
+                result.row = ('items', "CREATE TABLE `items` (`id` text, `queue_lane` varchar(24) GENERATED ALWAYS AS ('details') VIRTUAL) ENGINE=InnoDB")
+        result.execute = run
+        return result
+    native.cursor = cursor
+    output = io.StringIO()
+    export.write_mysql_dump(output, engine)
+    assert 'GENERATED ALWAYS' in output.getvalue()
+    assert 'INSERT INTO `items` (`id`)' in output.getvalue()
+    assert 'INSERT INTO `items` (`id`,`queue_lane`)' not in output.getvalue()
 
 
 @pytest.mark.parametrize("kind", ["missing", "nontransactional", "view"])

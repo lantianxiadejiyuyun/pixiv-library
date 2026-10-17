@@ -3,7 +3,7 @@ import ctypes
 import json
 import os
 
-ROLES = ("api", "download", "details", "checks", "ai", "translation", "other")
+ROLES = ("api", "download", "details", "checks", "ai", "translation", "other", "manual_download", "retry")
 
 
 def _windows_kernel():
@@ -50,6 +50,9 @@ def plan(cpus, setting="auto"):
     if setting != "auto":
         try:
             value = json.loads(setting)
+            if isinstance(value, dict) and set(ROLES) - {"manual_download", "retry"} <= set(value) <= set(ROLES):
+                for added in ("manual_download", "retry"):
+                    value.setdefault(added, value["download"])
             if not isinstance(value, dict) or set(value) != set(ROLES):
                 raise ValueError()
             for ids in value.values():
@@ -57,19 +60,20 @@ def plan(cpus, setting="auto"):
                     raise ValueError()
             return {key: sorted(value[key]) for key in ROLES}
         except (ValueError, TypeError):
-            raise ValueError("LIBRARY_CPU_AFFINITY 应为 auto、off 或包含 api 和六个队列的有效 CPU 编号 JSON") from None
+            raise ValueError("LIBRARY_CPU_AFFINITY 应为 auto、off 或包含 api 和各队列的有效 CPU 编号 JSON") from None
     # Reserve API CPUs first. Small NAS hosts necessarily share some CPUs.
     reserved = 2 if len(cpus) >= 14 else 1
     result = {"api": cpus[:reserved]}
     remaining = cpus[reserved:] or cpus
-    if len(remaining) < 6:
+    queues = len(ROLES) - 1
+    if len(remaining) < queues:
         for index, role in enumerate(ROLES[1:]):
             result[role] = [remaining[index % len(remaining)]]
     else:
-        width = len(remaining) // 6
+        width = len(remaining) // queues
         for index, role in enumerate(ROLES[1:]):
             result[role] = remaining[index * width:(index + 1) * width]
-        result["ai"] += remaining[6 * width:]
+        result["ai"] += remaining[queues * width:]
     return result
 
 

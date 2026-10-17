@@ -18,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .auth import COOKIE_NAME, check_password, is_authenticated, issue_session, require_auth, verify_origin
 from .config import settings
+from .cors import LibraryCORSMiddleware
 from .database import Base, SessionLocal, engine, get_db
 from .library import SUPPORTED_EXTENSIONS, build_item_view, import_files, import_local_paths, iso, natural_key, reconcile_assets, set_tags
 from .models import Asset, Item, ItemTag, Job, ReadingProgress, Tag, utcnow
@@ -84,8 +85,13 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
     if request.url.path.startswith("/api/"):
-        response.headers["Cache-Control"] = "no-store"
+        no_transform = "no-transform" in {part.strip().lower() for part in response.headers.get("Cache-Control", "").split(",")}
+        response.headers["Cache-Control"] = "no-store, no-transform" if no_transform else "no-store"
     return response
+
+
+# Keep preflight and CORS headers outside API authentication/origin errors.
+app.add_middleware(LibraryCORSMiddleware)
 
 
 @app.exception_handler(ValueError)
@@ -154,7 +160,11 @@ def get_item(item_id: str, db: Session) -> Item:
 @api.get("/dashboard")
 def dashboard(db: Session = Depends(get_db)):
     recent = db.scalars(select(Item).order_by(Item.created_at.desc()).limit(8)).all()
-    return {"total_items": db.scalar(select(func.count(Item.id))) or 0, "total_pages": db.scalar(select(func.count(Asset.id))) or 0, "total_bytes": db.scalar(select(func.sum(Asset.size_bytes))) or 0, "pending_jobs": db.scalar(select(func.count(Job.id)).where(Job.status.in_(["queued", "running"]))) or 0, "untagged_items": db.scalar(select(func.count(Item.id)).where(~Item.item_tags.any())) or 0, "recent_items": [build_item_view(item) for item in recent], "source_counts": dict(db.execute(select(Item.source, func.count(Item.id)).group_by(Item.source)).all()), "rating_counts": dict(db.execute(select(Item.rating, func.count(Item.id)).group_by(Item.rating)).all())}
+    sources = dict(db.execute(select(Item.source, func.count(Item.id)).group_by(Item.source)).all())
+    total = sum(sources.values())
+    pages, size = db.execute(select(func.count(Asset.id), func.sum(Asset.size_bytes))).one()
+    tagged = db.scalar(select(func.count(func.distinct(ItemTag.item_id)))) or 0
+    return {"total_items": total, "total_pages": pages, "total_bytes": size or 0, "pending_jobs": db.scalar(select(func.count(Job.id)).where(Job.status.in_(["queued", "running"]))) or 0, "untagged_items": total - tagged, "recent_items": [build_item_view(item) for item in recent], "source_counts": sources, "rating_counts": dict(db.execute(select(Item.rating, func.count(Item.id)).group_by(Item.rating)).all())}
 
 
 @api.get("/items")
@@ -209,7 +219,10 @@ def item_detail(item_id: str, db: Session = Depends(get_db)):
 
 @api.get("/items/{item_id}/cover")
 def preview_cover(item_id: str, db: Session = Depends(get_db)):
-    preview = get_item(item_id, db).preview_cover
+    row = db.execute(select(Item.id, Item.preview_cover).where(Item.id == item_id)).first()
+    if row is None:
+        raise HTTPException(404, "作品不存在")
+    preview = row.preview_cover
     if not isinstance(preview, dict) or preview.get("mime_type") != "image/webp":
         raise HTTPException(404, "封面尚未保存")
     path = resolve_asset_path(preview["relative_path"])
@@ -386,15 +399,29 @@ def update_progress(item_id: str, data: ProgressUpdate, db: Session = Depends(ge
 
 @api.get("/tags")
 def list_tags(q: str = Query("", max_length=191), source: str = "", limit: int | None = Query(None, ge=1, le=1000), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
-    query = select(Tag.id, Tag.name, Tag.name_zh, func.count(func.distinct(ItemTag.item_id))).join(ItemTag).join(Item, Item.id == ItemTag.item_id)
+    links = select(ItemTag.tag_id, ItemTag.item_id)
+    if source:
+        links = links.join(Item, Item.id == ItemTag.item_id).where(Item.source == source)
+    if limit is None and not q.strip():
+        eligible_links = links.subquery()
+        totals = select(eligible_links.c.tag_id, func.count(func.distinct(eligible_links.c.item_id)).label('count')).group_by(eligible_links.c.tag_id).subquery()
+        query = select(Tag.id, Tag.name, Tag.name_zh, totals.c.count).join(totals, totals.c.tag_id == Tag.id).order_by(Tag.name, Tag.id).offset(offset)
+        return [{"id": id_, "name": name, "name_zh": name_zh, "display_name": name_zh or name, "count": count} for id_, name, name_zh, count in db.execute(query)]
+    # Select this page before counting links: a small tag search must not group
+    # the entire library. EXISTS also preserves offsets after source filtering.
+    eligible = links.where(ItemTag.tag_id == Tag.id).exists()
+    page = select(Tag.id, Tag.name, Tag.name_zh).where(eligible)
     if q.strip():
         term = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        query = query.where(or_(Tag.name.ilike(f"%{term}%", escape="\\"), Tag.name_zh.ilike(f"%{term}%", escape="\\")))
-    if source:
-        query = query.where(Item.source == source)
-    query = query.group_by(Tag.id, Tag.name, Tag.name_zh).order_by(Tag.name, Tag.id).offset(offset)
+        page = page.where(or_(Tag.name.ilike(f"%{term}%", escape="\\"), Tag.name_zh.ilike(f"%{term}%", escape="\\")))
+    page = page.order_by(Tag.name, Tag.id).offset(offset)
     if limit is not None:
-        query = query.limit(limit)
+        page = page.limit(limit)
+    selected = page.subquery()
+    query = select(selected.c.id, selected.c.name, selected.c.name_zh, func.count(func.distinct(ItemTag.item_id))).join(ItemTag, ItemTag.tag_id == selected.c.id)
+    if source:
+        query = query.join(Item, Item.id == ItemTag.item_id).where(Item.source == source)
+    query = query.group_by(selected.c.id, selected.c.name, selected.c.name_zh).order_by(selected.c.name, selected.c.id)
     return [{"id": id_, "name": name, "name_zh": name_zh, "display_name": name_zh or name, "count": count} for id_, name, name_zh, count in db.execute(query)]
 
 
@@ -431,6 +458,10 @@ from .source_auth_api import router as source_auth_router
 app.include_router(source_auth_router, prefix="/api")
 from .network_api import router as network_router
 app.include_router(network_router, prefix="/api")
+from .network_speed import router as network_speed_router
+app.include_router(network_speed_router, prefix="/api")
+from .pixiv_collection import router as pixiv_collection_router
+app.include_router(pixiv_collection_router, prefix="/api")
 from .character_search import router as character_search_router
 app.include_router(character_search_router, prefix="/api")
 from .character_wall import router as character_wall_router
@@ -448,6 +479,10 @@ except ModuleNotFoundError as exc:
         raise
 else:
     app.include_router(integration_router, prefix="/api")
+from app.ai_nodes import router as ai_nodes_router
+app.include_router(ai_nodes_router, prefix="/api")
+from app.watchlist import router as watchlist_router
+app.include_router(watchlist_router, prefix="/api")
 
 
 FRONTEND_DIST = Path(os.getenv("LIBRARY_FRONTEND_DIST", str(Path(__file__).resolve().parents[2] / "web" / "dist"))).resolve()

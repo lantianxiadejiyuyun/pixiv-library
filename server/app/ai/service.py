@@ -30,11 +30,18 @@ def model_status():
     files = (directory / "model.onnx", directory / "selected_tags.csv")
     if not os.getenv("LIBRARY_WORKER_PROCESS"):
         from ..worker_runtime import supervisor
-        snapshot = supervisor.worker_data("ai")
-        if snapshot and snapshot.get("model_key") == [path.stat().st_mtime_ns if path.is_file() else None for path in files]:
-            cached = snapshot.get("ai_status")
-            if cached and cached.get("requested_provider") == os.getenv("LIBRARY_AI_PROVIDER", "auto").lower():
-                return cached
+        model_key = [path.stat().st_mtime_ns if path.is_file() else None for path in files]
+        snapshots = []
+        for lane in ("ai", "retry"):
+            snapshot = supervisor.worker_data(lane)
+            if snapshot and snapshot.get("model_key") == model_key:
+                cached = snapshot.get("ai_status")
+                if cached and cached.get("requested_provider") == os.getenv("LIBRARY_AI_PROVIDER", "auto").lower():
+                    snapshots.append(cached)
+        # Keep the ordinary AI worker authoritative once it has run, but do not
+        # report "not loaded" when only the retry process performed inference.
+        if snapshots:
+            return next((value for value in snapshots if value.get("execution_state") != "not_loaded"), snapshots[0])
     runtime = runtime_info()
     requested_provider = os.getenv("LIBRARY_AI_PROVIDER", "auto").lower()
     providers = runtime["available_providers"]
@@ -60,7 +67,7 @@ def model_status():
         {"id": "ocr", "label": "扫描正文 OCR", "available": False, "message": "尚未接入 OCR"}],
         "provider": requested_provider, "available_providers": providers, "runtime_version": runtime["runtime_version"],
         **execution,
-        "message": "图片使用本地 ONNX；不会自动下载权重或上传内容。自建角色库和独立 AI 节点待实现。"}
+        "message": "本机图片识别使用 ONNX；不会自动下载权重。可在远程 AI 控制器中切换执行节点。"}
 
 
 def _model_key(directory, provider):
@@ -158,14 +165,19 @@ def analyze_item(db, item_id, checkpoint=lambda value: None, before_commit=lambd
         raise ConnectorError("作品仅含元数据；请先保存原文件再分析")
     image_assets = [a for a in assets if a.mime_type.startswith("image/")]
     text_assets = [a for a in assets if a.mime_type.startswith("text/")]
-    if image_assets and not model_status()["available"]:
+    from app.ai_nodes import image_target, infer_remote, signature
+    remote = image_target(db) if image_assets else None
+    if image_assets and remote is None and not model_status()["available"]:
         raise ConnectorError(model_status()["models"][0]["message"])
     if not image_assets and not text_assets:
         raise ConnectorError("没有可分析的图片或文本文件")
     combined, evidence, text_evidence = {}, [], []
+    if remote is not None:
+        db.commit()  # No library transaction or row lock crosses remote inference.
     for index, asset in enumerate(image_assets):
         checkpoint(5 + int(80 * index / len(image_assets)))
-        prediction = infer_image(resolve_asset_path(asset.relative_path))
+        path = resolve_asset_path(asset.relative_path)
+        prediction = infer_remote(remote, path) if remote is not None else infer_image(path)
         evidence.append({"asset_id": asset.id, "position": asset.position, "rating": prediction["rating"],
                          "rating_scores": prediction["rating_scores"], "model_version": prediction["model_version"],
                          "execution": prediction.get("execution")})
@@ -184,6 +196,11 @@ def analyze_item(db, item_id, checkpoint=lambda value: None, before_commit=lambd
     checkpoint(95)
     # End the read snapshot before writing so concurrent manual changes are visible.
     db.rollback()
+    if remote is not None:
+        from app.queue_control import lock_control
+        lock_control(db)
+        if signature(image_target(db)) != signature(remote):
+            raise ConnectorError("图片 AI 节点配置已更改，结果未保存，请重新提交")
     # Only mutate once every page succeeds. Keep manual/source annotations.
     db.execute(delete(ItemTag).where(ItemTag.item_id == item_id, ItemTag.origin == "ai"))
     from app.library import ensure_tag

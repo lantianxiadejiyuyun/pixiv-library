@@ -5,22 +5,22 @@ import { api, errorMessage } from '../api'
 import type { SourceAccount } from '../types'
 
 type Account = {id: string; label: string | null; status: 'verified' | 'unverified' | 'missing' | 'unconfigured'; verified_at?: string | null; in_pool?: boolean; running: number; completed: number; failed: number}
-type Config = {enabled: boolean; main_account_id: string | null; content_account_id: string | null; content_account_ids: string[]; detail_account_ids?: string[]; check_account_ids?: string[]; account_limits?: Record<string, number>; download_accounts: Account[]; missing_account_ids?: string[]}
+type Config = {enabled: boolean; main_account_id: string | null; content_account_id: string | null; content_account_ids: string[]; manual_account_ids?: string[]; retry_account_ids?: string[]; detail_account_ids?: string[]; check_account_ids?: string[]; account_limits?: Record<string, number>; download_accounts: Account[]; missing_account_ids?: string[]}
 const props = defineProps<{accounts: SourceAccount[]}>()
 const emit = defineEmits<{change: [config: Config]; login: []; removed: []}>()
 const state = ref<Config | null>(null)
-const form = reactive({enabled: false, main_account_id: '', content_account_ids: [] as string[], detail_account_ids: [] as string[], check_account_ids: [] as string[], account_limits: {} as Record<string, number>})
+const form = reactive({enabled: false, main_account_id: '', content_account_ids: [] as string[], manual_account_ids: [] as string[], retry_account_ids: [] as string[], detail_account_ids: [] as string[], check_account_ids: [] as string[], account_limits: {} as Record<string, number>})
 const loading = ref(true), busy = ref(false), error = ref(''), message = ref(''), saved = ref('')
 const query = ref(''), confirmRemove = ref('')
-type FunctionFilter = 'all' | 'download' | 'details' | 'checks'
+type FunctionFilter = 'all' | 'download' | 'manual' | 'retry' | 'details' | 'checks'
 const functionFilter = ref<FunctionFilter>('all')
-const functionOptions: {id: FunctionFilter; label: string}[] = [{id: 'all', label: '全部账号'}, {id: 'download', label: '图片下载'}, {id: 'details', label: '作品详情 / 正文'}, {id: 'checks', label: '作者资料'}]
+const functionOptions: {id: FunctionFilter; label: string}[] = [{id: 'all', label: '全部账号'}, {id: 'download', label: '自动图片下载'}, {id: 'manual', label: '手动下载'}, {id: 'retry', label: '失败重试'}, {id: 'details', label: '作品详情 / 正文'}, {id: 'checks', label: '作者资料'}]
 const dirty = computed(() => !!saved.value && JSON.stringify(form) !== saved.value)
 const accounts = computed<Account[]>(() => (state.value?.download_accounts ?? props.accounts.map(account => ({...account, status: account.verified_at ? 'verified' : 'unverified', running: 0, completed: 0, failed: 0}))).filter(account => account.status !== 'missing'))
-const roleCounts = computed(() => ({all: accounts.value.length, download: form.content_account_ids.length, details: form.detail_account_ids.length, checks: form.check_account_ids.length}))
+const roleCounts = computed(() => ({all: accounts.value.length, download: form.content_account_ids.length, manual: form.manual_account_ids.length, retry: form.retry_account_ids.length, details: form.detail_account_ids.length, checks: form.check_account_ids.length}))
 const filtered = computed(() => accounts.value.filter(account => {
   if (!`${account.label || ''} ${account.id}`.toLowerCase().includes(query.value.trim().toLowerCase())) return false
-  return functionFilter.value === 'all' || (functionFilter.value === 'download' ? form.content_account_ids : functionFilter.value === 'details' ? form.detail_account_ids : form.check_account_ids).includes(account.id)
+  return functionFilter.value === 'all' || (functionFilter.value === 'download' ? form.content_account_ids : functionFilter.value === 'manual' ? form.manual_account_ids : functionFilter.value === 'retry' ? form.retry_account_ids : functionFilter.value === 'details' ? form.detail_account_ids : form.check_account_ids).includes(account.id)
 }))
 const names = {verified: '已登录', unverified: '凭据未验证', missing: '账号已移除', unconfigured: '未配置'}
 let request = 0, disposed = false, polling = false
@@ -29,14 +29,14 @@ function apply(config: Config, preserve = false) {
   const keep = preserve && dirty.value
   state.value = config
   if (!keep) {
-    Object.assign(form, {enabled: config.enabled, main_account_id: config.main_account_id || '', content_account_ids: [...(config.content_account_ids ?? (config.content_account_id ? [config.content_account_id] : []))], detail_account_ids: [...(config.detail_account_ids ?? [])], check_account_ids: [...(config.check_account_ids ?? [])], account_limits: Object.fromEntries(config.download_accounts.map(account => [account.id, config.account_limits?.[account.id] ?? 2]))})
+    Object.assign(form, {enabled: config.enabled, main_account_id: config.main_account_id || '', content_account_ids: [...(config.content_account_ids ?? (config.content_account_id ? [config.content_account_id] : []))], manual_account_ids: [...(config.manual_account_ids ?? [])], retry_account_ids: [...(config.retry_account_ids ?? [])], detail_account_ids: [...(config.detail_account_ids ?? [])], check_account_ids: [...(config.check_account_ids ?? [])], account_limits: Object.fromEntries(config.download_accounts.map(account => [account.id, config.account_limits?.[account.id] ?? 2]))})
     saved.value = JSON.stringify(form)
   }
   // Drop deleted identities from both server selections and unsaved edits.
   // The server retains old references to make already assigned jobs fail closed.
   const available = new Set(accounts.value.map(account => account.id))
   if (!available.has(form.main_account_id)) form.main_account_id = ''
-  for (const key of ['content_account_ids', 'detail_account_ids', 'check_account_ids'] as const) form[key] = form[key].filter(id => available.has(id))
+  for (const key of ['content_account_ids', 'manual_account_ids', 'retry_account_ids', 'detail_account_ids', 'check_account_ids'] as const) form[key] = form[key].filter(id => available.has(id))
   form.account_limits = Object.fromEntries(Object.entries(form.account_limits).filter(([id]) => available.has(id)))
   emit('change', config)
 }
@@ -50,10 +50,10 @@ async function load(silent = false) {
 }
 async function save() {
   if (busy.value || loading.value || disposed) return
-  if (form.enabled && (!form.main_account_id || !(form.content_account_ids.length || form.detail_account_ids.length || form.check_account_ids.length))) { error.value = '请选择主账号，并为至少一种功能分配账号。'; return }
+  if (form.enabled && (!form.main_account_id || !(form.content_account_ids.length || form.manual_account_ids.length || form.detail_account_ids.length || form.check_account_ids.length))) { error.value = '请选择主账号，并为至少一种功能分配账号。'; return }
   const current = ++request; busy.value = true; error.value = ''; message.value = ''
   try {
-    const config = await api<Config>('/sources/pixiv/account-roles', {method: 'PUT', body: JSON.stringify({enabled: form.enabled, main_account_id: form.main_account_id || null, content_account_ids: [...form.content_account_ids], detail_account_ids: [...form.detail_account_ids], check_account_ids: [...form.check_account_ids], account_limits: {...form.account_limits}})})
+    const config = await api<Config>('/sources/pixiv/account-roles', {method: 'PUT', body: JSON.stringify({enabled: form.enabled, main_account_id: form.main_account_id || null, content_account_ids: [...form.content_account_ids], manual_account_ids: [...form.manual_account_ids], retry_account_ids: [...form.retry_account_ids], detail_account_ids: [...form.detail_account_ids], check_account_ids: [...form.check_account_ids], account_limits: {...form.account_limits}})})
     if (disposed || current !== request) return
     apply(config)
     message.value = config.enabled ? '已保存账号功能与并发设置。' : '已保存，主副账号分工未开启。'
@@ -97,17 +97,17 @@ onBeforeUnmount(() => { disposed = true; ++request; clearInterval(timer) })
       <div class="accounts-overview" aria-label="账号功能统计">
         <button v-for="option in functionOptions" :key="option.id" type="button" :aria-pressed="functionFilter === option.id" :class="{selected: functionFilter === option.id}" @click="functionFilter = option.id"><span>{{ option.label }}</span><strong>{{ roleCounts[option.id] }}</strong></button>
       </div>
-      <div class="accounts-toolbar"><div class="search-field"><Search :size="17" /><input v-model="query" aria-label="搜索账号" placeholder="搜索账号名称或 ID…" /></div><span class="result-count">{{ filtered.length }} 个结果</span><button type="button" class="text-button" :disabled="busy || !filtered.length" @click="selectVisible(true)">全选下载</button><button type="button" class="text-button" :disabled="busy || !filtered.length" @click="selectVisible(false)">取消下载</button></div>
+      <div class="accounts-toolbar"><div class="search-field"><Search :size="17" /><input v-model="query" aria-label="搜索账号" placeholder="搜索账号名称或 ID…" /></div><span class="result-count">{{ filtered.length }} 个结果</span><button type="button" class="text-button" :disabled="busy || !filtered.length" @click="selectVisible(true)">全选自动下载</button><button type="button" class="text-button" :disabled="busy || !filtered.length" @click="selectVisible(false)">取消自动下载</button></div>
       <div class="accounts-list">
         <article v-for="account in filtered" :key="account.id" class="download-account-row">
           <div class="account-identity"><span class="account-avatar" aria-hidden="true">{{ (account.label || 'P').slice(0, 1) }}</span><div><strong>{{ account.label || '未命名账号' }}</strong><div class="account-badges"><span v-if="account.id === form.main_account_id" class="main-badge">检索主账号</span><span class="status-pill" :class="account.status === 'verified' ? 'success' : 'neutral'" :title="account.status === 'verified' ? '添加时已通过验证；会话是否仍有效以实际请求为准。' : ''">{{ names[account.status] }}</span></div></div></div>
           <div class="account-metrics" aria-label="账号任务统计"><span :class="{active: account.running > 0}">运行 <strong>{{ account.running }}</strong></span><span>完成 <strong>{{ account.completed }}</strong></span><span :class="{'danger-text': account.failed > 0}">失败 <strong>{{ account.failed }}</strong></span></div>
-          <div class="account-controls"><div class="account-capabilities" :aria-label="`${account.label} 的功能`"><label :class="{checked: form.content_account_ids.includes(account.id), unavailable: account.id === form.main_account_id}"><input v-model="form.content_account_ids" type="checkbox" :value="account.id" :disabled="busy || account.id === form.main_account_id" :aria-label="`图片下载 ${account.label}`" />图片下载</label><label :class="{checked: form.detail_account_ids.includes(account.id)}"><input v-model="form.detail_account_ids" type="checkbox" :value="account.id" :disabled="busy" :aria-label="`作品详情与小说正文 ${account.label}`" />作品详情 / 正文</label><label :class="{checked: form.check_account_ids.includes(account.id)}"><input v-model="form.check_account_ids" type="checkbox" :value="account.id" :disabled="busy" :aria-label="`作者主页与账号资料 ${account.label}`" />作者资料</label></div><label class="account-concurrency">并发<input v-model.number="form.account_limits[account.id]" type="number" min="1" max="8" required :disabled="busy" :aria-label="`账号并发 ${account.label}`" /></label></div>
+          <div class="account-controls"><div class="account-capabilities" :aria-label="`${account.label} 的功能`"><label :class="{checked: form.content_account_ids.includes(account.id), unavailable: account.id === form.main_account_id}"><input v-model="form.content_account_ids" type="checkbox" :value="account.id" :disabled="busy || account.id === form.main_account_id" :aria-label="`图片下载 ${account.label}`" />自动图片下载</label><label :class="{checked: form.manual_account_ids.includes(account.id)}"><input v-model="form.manual_account_ids" type="checkbox" :value="account.id" :disabled="busy" :aria-label="`手动下载 ${account.label}`" />手动下载</label><label :class="{checked: form.retry_account_ids.includes(account.id)}"><input v-model="form.retry_account_ids" type="checkbox" :value="account.id" :disabled="busy" :aria-label="`失败重试 ${account.label}`" />失败重试</label><label :class="{checked: form.detail_account_ids.includes(account.id)}"><input v-model="form.detail_account_ids" type="checkbox" :value="account.id" :disabled="busy" :aria-label="`作品详情与小说正文 ${account.label}`" />作品详情 / 正文</label><label :class="{checked: form.check_account_ids.includes(account.id)}"><input v-model="form.check_account_ids" type="checkbox" :value="account.id" :disabled="busy" :aria-label="`作者主页与账号资料 ${account.label}`" />作者资料</label></div><label class="account-concurrency">并发<input v-model.number="form.account_limits[account.id]" type="number" min="1" max="8" required :disabled="busy" :aria-label="`账号并发 ${account.label}`" /></label></div>
           <div class="account-remove"><button v-if="account.status !== 'missing'" type="button" class="text-button danger-text" :disabled="busy" @click="remove(account.id)"><Trash2 :size="14" />{{ confirmRemove === account.id ? '确认移除' : '移除' }}</button><button v-if="confirmRemove === account.id" type="button" class="text-button" :disabled="busy" @click="confirmRemove = ''">取消</button></div>
         </article>
         <div v-if="!filtered.length" class="accounts-empty"><Search :size="28" /><p>{{ accounts.length ? '没有匹配的账号' : '尚未添加 Pixiv 账号' }}</p><button v-if="accounts.length" type="button" class="text-button" @click="query = ''; functionFilter = 'all'">查看全部账号</button><button v-else type="button" class="button secondary small" @click="emit('login')">添加账号</button></div>
       </div>
-      <div class="accounts-footer"><p class="field-hint">并发 1–8，同时遵守队列上限。作品详情／小说正文和作者资料需选择对应账号，留空不会改用主账号；主账号可手动勾选这两项。</p><div class="accounts-save"><span v-if="dirty" role="status">有未保存的修改</span><button class="button primary small" :disabled="busy || (!dirty && !!state)"><LoaderCircle v-if="busy" class="spin" :size="16" /><Save v-else :size="16" />保存配置</button></div></div>
+      <div class="accounts-footer"><p class="field-hint">手动下载权限需单独勾选。失败重试需同时勾选重试权限与原任务对应功能；可与其他功能多选。并发 1–8，同时遵守各队列上限。作品详情／小说正文和作者资料需选择对应账号，留空不会改用主账号；主账号可手动勾选这两项。</p><div class="accounts-save"><span v-if="dirty" role="status">有未保存的修改</span><button class="button primary small" :disabled="busy || (!dirty && !!state)"><LoaderCircle v-if="busy" class="spin" :size="16" /><Save v-else :size="16" />保存配置</button></div></div>
     </form>
     <div v-if="error" class="alert error" role="alert">{{ error }}</div><div v-if="message" class="alert info" role="status">{{ message }}</div>
   </section>
@@ -116,7 +116,7 @@ onBeforeUnmount(() => { disposed = true; ++request; clearInterval(timer) })
 <style scoped>
 .download-accounts {padding:24px;}.accounts-header,.accounts-actions,.accounts-toolbar,.accounts-footer {display:flex;align-items:center;gap:14px;}.accounts-header,.accounts-footer {justify-content:space-between;}.accounts-header {align-items:flex-start;margin-bottom:24px;}.accounts-header h2 {font-size:18px;}.accounts-header p {margin:8px 0 0;max-width:650px;}.accounts-actions {flex-shrink:0;}.accounts-config {display:grid;grid-template-columns:minmax(200px,360px) 1fr;gap:24px;align-items:center;margin-bottom:24px;}.accounts-enabled {display:flex;gap:9px;align-items:center;font-size:14px;}.accounts-toolbar {flex-wrap:wrap;margin-bottom:14px;font-size:13px;color:var(--text-secondary);}.accounts-toolbar .search-field {flex:1;min-width:180px;}.accounts-list {border-top:1px solid var(--line);}.download-account-row {display:grid;grid-template-columns:minmax(170px,1fr) auto 100px;gap:20px;align-items:center;padding:18px 0;border-bottom:1px solid var(--line);}.account-select {display:flex;align-items:center;gap:12px;min-width:0;}.account-select>span {display:flex;flex-direction:column;gap:7px;min-width:0;}.account-select strong {font-size:15px;overflow-wrap:anywhere;}.account-select small {font-size:13px;color:var(--text-secondary);}.account-capabilities {display:flex;gap:14px;flex-wrap:wrap;grid-column:1/-1;grid-row:2;}.account-capabilities label {display:flex;align-items:center;gap:7px;font-size:13px;}.account-capabilities input[type=number] {width:70px;padding:6px;} .account-metrics {display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--text-secondary);}.account-remove {display:flex;flex-direction:column;align-items:flex-end;gap:8px;}.accounts-footer {margin-top:20px;align-items:flex-start;}.accounts-footer p {margin:0;max-width:700px;}.accounts-footer button {flex-shrink:0;}.alert {margin-top:16px;}
 .accounts-role-hint {margin:0 0 20px;}
-.accounts-overview {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 20px;}
+.accounts-overview {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px;}
 .accounts-overview button {display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text-secondary);cursor:pointer;text-align:left;font:inherit;}
 .accounts-overview button.selected {border-color:var(--accent);background:var(--accent-soft);color:var(--accent);}
 .accounts-overview span {font-size:13px;}.accounts-overview strong {font-size:26px;font-weight:650;line-height:1.2;font-variant-numeric:tabular-nums;}

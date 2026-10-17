@@ -29,16 +29,18 @@ _ID = r"[^/]+"
 _READ_PATHS = tuple(re.compile(pattern + r"\Z") for pattern in (
     r"/api/(?:health|dashboard|items|tags)", r"/api/translation/status",
     r"/api/library/collections", r"/api/favorite-groups", r"/api/platform-endpoints",
+    r"/api/network/speed/(?:ping|download)",
     r"/api/characters", rf"/api/characters/{_ID}",
     r"/api/app-updates/android", r"/api/app-updates/android/[a-f0-9]{64}/apk",
     rf"/api/items/{_ID}", rf"/api/items/{_ID}/(?:cover|export|translation)",
     rf"/api/assets/{_ID}/(?:content|thumbnail|text-sections)",
     rf"/api/series/{_ID}",
+    r"/api/pixiv/watchlist", rf"/api/pixiv/watchlist/{_ID}",
     r"/api/pixiv/authors", rf"/api/pixiv/authors/{_ID}(?:/(?:avatar|feed))?", rf"/api/pixiv/tasks/{_ID}",
 ))
-_WRITE_PATHS = {"PUT": re.compile(rf"(?:/api/items/{_ID}/(?:progress|favorite|score)|/api/favorite-groups/{_ID}|/api/platform-endpoints/(?:pixiv|ehentai|picacg|jm|kemono))\Z"),
+_WRITE_PATHS = {"PUT": re.compile(rf"(?:/api/items/{_ID}/(?:progress|favorite|score)|/api/pixiv/authors/{_ID}/download-settings|/api/favorite-groups/{_ID}|/api/platform-endpoints/(?:pixiv|ehentai|picacg|jm|kemono))\Z"),
                 "DELETE": re.compile(rf"(?:/api/favorite-groups/{_ID}|/api/history)\Z"),
-                "POST": re.compile(rf"(?:/api/items/{_ID}/(?:download|translate|visit|cover-refresh)|/api/favorite-groups|/api/devices/disconnect|/api/pixiv/authors/open|/api/pixiv/authors/{_ID}/feed|/api/characters|/api/characters/search|/api/characters/{_ID}/profile)\Z")}
+                "POST": re.compile(rf"(?:/api/items/{_ID}/(?:download|translate|visit|cover-refresh)|/api/favorite-groups|/api/devices/disconnect|/api/pixiv/authors/open|/api/pixiv/authors/{_ID}/feed|/api/pixiv/watchlist/sync|/api/pixiv/watchlist/{_ID}/(?:read|check)|/api/characters|/api/characters/search|/api/characters/{_ID}/profile|/api/network/speed/upload|/api/pixiv/direct/credentials)\Z")}
 _rate_lock = Lock()
 _rates = {}
 

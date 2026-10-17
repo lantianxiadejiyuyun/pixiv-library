@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, BigInteger, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Computed, DateTime, Float, ForeignKey, Index, Integer, BigInteger, String, Text, UniqueConstraint, column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 
@@ -42,6 +42,7 @@ class Item(TimestampMixin, Base):
     preview_cover: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     remote_page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_bookmark_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    source_published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     user_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     source_series: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     content_state: Mapped[str] = mapped_column(String(24), default="metadata", server_default="metadata", index=True)
@@ -128,12 +129,15 @@ class CharacterProfile(TimestampMixin, Base):
 
 class Job(TimestampMixin, Base):
     __tablename__ = "jobs"
-    __table_args__ = (Index("ix_jobs_claim_order", "status", "kind", "created_at", "id"),)
+    __table_args__ = (Index("ix_jobs_claim_order", "status", "kind", "created_at", "id"),
+                      Index("ix_jobs_lane_claim", "queue_lane", "status", "created_at", "id"))
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     kind: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
     progress: Mapped[float] = mapped_column(Float, default=0)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    from .queue_sql import lane_value as _lane_value
+    queue_lane: Mapped[str] = mapped_column(String(24), Computed(_lane_value(column('kind', String()), column('payload', JSON())), persisted=False))
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
@@ -180,11 +184,35 @@ class Subscription(TimestampMixin, Base):
     label: Mapped[str] = mapped_column(String(191))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_download: Mapped[bool] = mapped_column(Boolean, default=False)
+    download_works: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    download_bookmarks: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     content_scope: Mapped[str] = mapped_column(String(16), default="images", server_default="images")
     account_id: Mapped[str | None] = mapped_column(ForeignKey("source_accounts.id", ondelete="SET NULL"), nullable=True)
     interval_minutes: Mapped[int] = mapped_column(Integer, default=360)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     next_check_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PixivWatchlist(TimestampMixin, Base):
+    __tablename__ = "pixiv_watchlist"
+    __table_args__ = (UniqueConstraint("account_id", "kind", "remote_id", name="uq_pixiv_watchlist_owner_series"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    account_id: Mapped[str] = mapped_column(ForeignKey("source_accounts.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    remote_id: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(512))
+    author: Mapped[str] = mapped_column(String(191), default="")
+    author_id: Mapped[str] = mapped_column(String(32), default="")
+    content_count: Mapped[int] = mapped_column(Integer, default=0)
+    latest_content_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    seen_content_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    remote_updated_at: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    present_remote: Mapped[bool] = mapped_column(Boolean, default=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_download: Mapped[bool] = mapped_column(Boolean, default=False)
+    series_id: Mapped[str | None] = mapped_column(ForeignKey("series.id", ondelete="SET NULL"), nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -292,3 +320,5 @@ class AndroidRelease(Base):
 
 
 Index("ix_item_recent", Item.created_at)
+Index("ix_item_source_recent", Item.source, Item.created_at.desc(), Item.id)
+Index("ix_item_order_recent", Item.created_at.desc(), Item.id)
