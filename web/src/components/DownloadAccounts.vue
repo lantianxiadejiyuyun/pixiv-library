@@ -82,7 +82,7 @@ async function remove(id: string) {
 }
 watch(() => form.main_account_id, id => { form.content_account_ids = form.content_account_ids.filter(value => value !== id) })
 watch(() => props.accounts, () => load(true), {deep: true})
-onMounted(() => { load(); timer = setInterval(() => load(true), 6000) })
+onMounted(() => { load(); timer = setInterval(() => { if (!document.hidden) void load(true) }, 6000) })
 onBeforeUnmount(() => { disposed = true; ++request; clearInterval(timer) })
 </script>
 

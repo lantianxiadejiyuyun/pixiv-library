@@ -136,9 +136,10 @@ def author_detail(author_id: str, account_id: str | None = None, db=Depends(get_
 
 def author_download_settings(db, ident):
     from .subscription_policy import flags
+    from .pixiv_follow_download import default_works
     row = db.scalar(select(Subscription).where(Subscription.platform == "pixiv", Subscription.target_type == "author",
                                               Subscription.target == ident).order_by(Subscription.created_at, Subscription.id))
-    return {"download_works": False, "download_bookmarks": False, "subscribed": False} if row is None else {**flags(row), "subscribed": True}
+    return {"download_works": False, "download_bookmarks": False, "subscribed": False} if row is None else {**flags(row, default_works=default_works(db)), "subscribed": True}
 
 
 class AuthorDownloadInput(BaseModel):
@@ -314,7 +315,8 @@ def sync_feed(db, payload, report, guard):
     download = False
     if subscription and subscription.enabled and (subscription.content_scope == "all" or
             (subscription.content_scope == "novels") == (current.category == "novel")):
-        download = flags(subscription)["download_works" if current.section == "works" else "download_bookmarks"]
+        from .pixiv_follow_download import default_works
+        download = flags(subscription, default_works=default_works(db))["download_works" if current.section == "works" else "download_bookmarks"]
         if current.section == "bookmarks" and current.restrict != "public": download = False
     queued = set()
     for index, work in enumerate(works):

@@ -71,6 +71,7 @@ class WorkerSupervisor:
             cwd=Path(__file__).resolve().parents[1], stdin=subprocess.DEVNULL, **options)
         row["started"] = time.monotonic()
         row["recovered"] = False
+        row["exit_logged"] = False
 
     def start(self):
         self.prepare()
@@ -127,10 +128,15 @@ class WorkerSupervisor:
                 if self.stop_event.is_set():
                     return
                 process = row["process"]
-                if process is not None and process.poll() is None:
+                exit_code = process.poll() if process is not None else None
+                if process is not None and exit_code is None:
                     continue
                 moment = time.monotonic()
                 if not row["recovered"]:
+                    if not row.get("exit_logged"):
+                        row["last_exit_code"] = exit_code
+                        row["exit_logged"] = True
+                        log.error("Queue process exited: lane=%s exit_code=%s", lane, exit_code)
                     try:
                         # Never hold the status lock across DB recovery I/O.
                         self._recover(lane, row)
@@ -172,7 +178,8 @@ class WorkerSupervisor:
                 workers.append({"lane": lane, "pid": process.pid if process else None, "state": state,
                     "cpus": snapshot.get("cpus", []) if snapshot else [], "requested_cpus": placement.get(lane, []),
                     "affinity_applied": snapshot.get("affinity_applied", False) if snapshot else False,
-                    "active": snapshot.get("active", 0) if snapshot else 0, "restarts": row["restarts"]})
+                    "active": snapshot.get("active", 0) if snapshot else 0, "restarts": row["restarts"],
+                    "last_exit_code": row.get("last_exit_code")})
             return {"mode": "process" if self.workers else "disabled", "api_pid": os.getpid(),
                 "api_cpus": placement.get("api", []) if self.affinity_applied else [],
                 "affinity_applied": self.affinity_applied, "shared_cpus": cpu_affinity.shared(placement),

@@ -104,9 +104,9 @@ def validate_account(db, platform, account_id):
             raise HTTPException(400, "账号不存在或与平台不匹配")
 
 
-def subscription_view(value):
+def subscription_view(value, *, default_works=False):
     from .subscription_policy import flags
-    options = flags(value)
+    options = flags(value, default_works=default_works)
     ready = get_connector(value.platform).supports_subscriptions
     scope_message = ("检查作者作品及公开收藏的最新一页；不扩展收藏作品的作者；历史补全待实现"
                      if value.platform == "pixiv" and value.target_type == "author" else "定时检查最新一页；历史补全待实现")
@@ -292,14 +292,21 @@ def sync_source(platform: str, value: SyncInput, db=Depends(get_db)):
     return job_view(enqueue(db, "source_sync", {"platform": platform, "account_id": value.account_id}))
 
 
-@router.get("/jobs")
-def jobs(queue: str | None = None, db=Depends(get_db)):
+def job_history_query(queue: str | None = None):
     query = select(Job)
     if queue:
-        if queue not in queue_control.LANES:
-            raise HTTPException(422, "队列不存在")
         query = query.where(queue_control.lane_expression() == queue)
-    return {"items": [job_view(j) for j in db.scalars(query.order_by(Job.created_at.desc(), Job.id).limit(200))]}
+    # MySQL can prefer the queue claim index and sort the entire lane. History
+    # always reads a bounded recent page; its index also preserves the ID tie order.
+    index = "ix_jobs_lane_recent" if queue else "ix_jobs_recent"
+    return query.with_hint(Job, f"FORCE INDEX ({index})", dialect_name="mysql").order_by(Job.created_at.desc(), Job.id).limit(200)
+
+
+@router.get("/jobs")
+def jobs(queue: str | None = None, db=Depends(get_db)):
+    if queue and queue not in queue_control.LANES:
+        raise HTTPException(422, "队列不存在")
+    return {"items": [job_view(j) for j in db.scalars(job_history_query(queue))]}
 
 
 @router.get("/jobs/{job_id}")
@@ -386,7 +393,9 @@ def cancel_job(job_id: str, db=Depends(get_db)):
 
 @router.get("/subscriptions")
 def subscriptions(db=Depends(get_db)):
-    return {"items": [subscription_view(v) for v in db.scalars(select(Subscription).order_by(Subscription.created_at.desc()))]}
+    from .pixiv_follow_download import default_works
+    default = default_works(db)
+    return {"items": [subscription_view(v, default_works=default) for v in db.scalars(select(Subscription).order_by(Subscription.created_at.desc()))]}
 
 
 def check_target(platform, target_type, target):
@@ -414,13 +423,16 @@ def add_subscription(value: SubscriptionInput, db=Depends(get_db)):
     validate_account(db, value.platform, value.account_id)
     check_target(value.platform, value.target_type, value.target)
     item = Subscription(**{**value.model_dump(), "content_scope": scope})
+    if 'auto_download' in value.model_fields_set and not {'download_works', 'download_bookmarks'} & value.model_fields_set:
+        item.download_works = item.download_bookmarks = None if value.auto_download else False
     item.label = value.label.strip() or value.target[:191]
     if not get_connector(value.platform).supports_subscriptions:
         item.last_error = "该平台定时检查待实现；规则已保存"
     db.add(item)
     db.commit()
     db.refresh(item)
-    return subscription_view(item)
+    from .pixiv_follow_download import default_works
+    return subscription_view(item, default_works=default_works(db))
 
 
 @router.patch("/subscriptions/{subscription_id}")
@@ -429,8 +441,8 @@ def patch_subscription(subscription_id: str, value: SubscriptionPatch, db=Depend
     if not item:
         raise HTTPException(404, "订阅不存在")
     changes = value.model_dump(exclude_unset=True)
-    if "auto_download" in changes and not {"download_works", "download_bookmarks"} & changes.keys():
-        item.download_works = item.download_bookmarks = None
+    if changes.get("auto_download") is not None and not {"download_works", "download_bookmarks"} & changes.keys():
+        item.download_works = item.download_bookmarks = None if changes['auto_download'] else False
     if item.platform != "pixiv" and changes.get("content_scope", "images") not in (None, "images"):
         raise HTTPException(400, "当前仅 Pixiv 支持小说订阅范围")
     if "account_id" in changes:
@@ -438,12 +450,13 @@ def patch_subscription(subscription_id: str, value: SubscriptionPatch, db=Depend
     if changes.get("target") is not None:
         check_target(item.platform, item.target_type, changes["target"])
     for key, field_value in changes.items():
-        if field_value is not None or key == "account_id":
+        if field_value is not None or key in ("account_id", "download_works", "download_bookmarks"):
             setattr(item, key, field_value)
     item.next_check_at = None
     db.commit()
     db.refresh(item)
-    return subscription_view(item)
+    from .pixiv_follow_download import default_works
+    return subscription_view(item, default_works=default_works(db))
 
 
 @router.delete("/subscriptions/{subscription_id}")

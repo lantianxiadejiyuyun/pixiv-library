@@ -1,0 +1,22 @@
+# Optional fnOS compatibility: keep Docker-managed CIFS volumes mounted when
+# the NAS UI recreates app with bind mounts to the volume's _data directory.
+# Combine with the NAS override defining nas_library_share and its CIFS options.
+services:
+  storage_guard:
+    image: ${QIYE_STORAGE_GUARD_IMAGE:?Set to the already installed library image}
+    entrypoint: ["/bin/sleep", "infinity"]
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    user: "10001:10001"
+    mem_limit: 16m
+    pids_limit: 4
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - nas_library_share:/library/data:ro
+      - proxy_state:/library/proxy:ro
+  app:
+    depends_on:
+      storage_guard:
+        condition: service_started

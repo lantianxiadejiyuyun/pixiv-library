@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 
 from .database import Base
+from .job_account_sql import account_value, unique_account_value
 
 
 def new_id() -> str:
@@ -138,6 +139,13 @@ class Job(TimestampMixin, Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     from .queue_sql import lane_value as _lane_value
     queue_lane: Mapped[str] = mapped_column(String(24), Computed(_lane_value(column('kind', String()), column('payload', JSON())), persisted=False))
+    download_account_id: Mapped[str | None] = mapped_column(String(36), Computed(account_value(column('payload', JSON()), 'download_account_id'), persisted=False), deferred=True)
+    details_account_id: Mapped[str | None] = mapped_column(String(36), Computed(account_value(column('payload', JSON()), 'details_account_id'), persisted=False), deferred=True)
+    check_account_id: Mapped[str | None] = mapped_column(String(36), Computed(account_value(column('payload', JSON()), 'check_account_id'), persisted=False), deferred=True)
+    execution_account_id: Mapped[str | None] = mapped_column(String(36), Computed(account_value(column('payload', JSON()), 'execution_account_id'), persisted=False), deferred=True)
+    stats_details_account_id: Mapped[str | None] = mapped_column(String(36), Computed(unique_account_value('details_account_id'), persisted=False), deferred=True)
+    stats_check_account_id: Mapped[str | None] = mapped_column(String(36), Computed(unique_account_value('check_account_id'), persisted=False), deferred=True)
+    stats_execution_account_id: Mapped[str | None] = mapped_column(String(36), Computed(unique_account_value('execution_account_id'), persisted=False), deferred=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
@@ -322,3 +330,11 @@ class AndroidRelease(Base):
 Index("ix_item_recent", Item.created_at)
 Index("ix_item_source_recent", Item.source, Item.created_at.desc(), Item.id)
 Index("ix_item_order_recent", Item.created_at.desc(), Item.id)
+Index("ix_jobs_lane_recent", Job.queue_lane, Job.created_at.desc(), Job.id)
+Index("ix_jobs_recent", Job.created_at.desc(), Job.id)
+Index("ix_jobs_download_stats", Job.download_account_id, Job.status)
+Index("ix_jobs_details_stats", Job.stats_details_account_id, Job.status)
+Index("ix_jobs_check_stats", Job.stats_check_account_id, Job.status)
+Index("ix_jobs_execution_stats", Job.stats_execution_account_id, Job.status)
+Index("ix_assets_size", Asset.size_bytes)
+Index("ix_item_tags_item", ItemTag.item_id)

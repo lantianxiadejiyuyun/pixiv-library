@@ -510,9 +510,11 @@ def _sync(db, payload, report, guard):
         if not subscription or not subscription.enabled:
             return {"skipped": True, "message": "订阅已暂停或删除"}
         created = []
+        from .pixiv_follow_download import default_works
+        author_default = default_works(db) if platform == 'pixiv' else False
         for ident in dict.fromkeys(identities):
             from .subscription_policy import wants_body
-            download = wants_body(subscription, ident, getattr(connector, "discovery_origins", None))
+            download = wants_body(subscription, ident, getattr(connector, "discovery_origins", None), default_works=author_default)
             existing = db.scalar(select(Item).where(Item.source == platform, Item.source_id == ident).with_for_update())
             hint = None
             if platform == "pixiv":
@@ -573,8 +575,11 @@ def _sync(db, payload, report, guard):
         watchlist_job = queue_sync(db, automatic=True)
     guard(db)
     db.commit()
+    from .pixiv_follow_download import default_works
+    download_authors = platform == 'pixiv' and default_works(db)
     return {"added_subscriptions": added, "remote_follows": len(follows), "watchlist_job_id": watchlist_job.id if watchlist_job else None,
-            "message": "关注作者已导入为本地订阅；默认仅建档元数据，不自动下载"}
+            "message": "关注作者已导入为本地订阅；检查更新时默认下载作者作品，作者收藏单独控制" if download_authors else
+                       "关注作者已导入为本地订阅；默认仅建档元数据，不自动下载"}
 
 
 def process_job(job_id):
@@ -606,7 +611,8 @@ def process_job(job_id):
                     item.content_state, item.content_error, item.content_job_id = "downloading", None, job_id
             # End read transaction before long network/model work; no SQLite read lock held.
             db.commit()
-            with queue_control.request_context(heartbeat, lane) if kind in queue_control.ACQUISITION_KINDS else nullcontext():
+            from .download_staging import staging_context
+            with staging_context(), queue_control.request_context(heartbeat, lane) if kind in queue_control.ACQUISITION_KINDS else nullcontext():
                 if kind == "import":
                     result = _import(db, payload, report, guard, job_id)
                 elif kind == "import_content":

@@ -272,11 +272,15 @@ def public_config(db):
     ids = list(dict.fromkeys(known + config["content_account_ids"] + config["manual_account_ids"] + config["retry_account_ids"] + config["detail_account_ids"] + config["check_account_ids"] + ([config["main_account_id"]] if config["main_account_id"] else [])))
     counts = Counter()
     fields = ("download_account_id", "details_account_id", "check_account_id", "execution_account_id")
-    assigned = union_all(*(select(Job.id.label('job_id'), Job.status, Job.payload[key].as_string().label('account_id'))
-        .where(Job.status.in_(('running', 'completed', 'failed')), Job.payload[key].as_string().in_(known)) for key in fields)).subquery()
-    for ident, status, count in db.execute(select(assigned.c.account_id, assigned.c.status, func.count(func.distinct(assigned.c.job_id)))
-                                         .group_by(assigned.c.account_id, assigned.c.status)):
-        counts[ident, status] = count
+    if known:
+        # Deduplicated generated identities let each covering index aggregate
+        # before UNION: only a few counts, not every historic task, are merged.
+        columns = [getattr(Job, key if index == 0 else 'stats_' + key) for index, key in enumerate(fields)]
+        assigned = union_all(*(select(col.label('account_id'), Job.status, func.count().label('count'))
+            .where(col.in_(known), Job.status.in_(('running', 'completed', 'failed'))).group_by(col, Job.status) for col in columns)).subquery()
+        for ident, status, count in db.execute(select(assigned.c.account_id, assigned.c.status, func.sum(assigned.c.count))
+                                             .group_by(assigned.c.account_id, assigned.c.status)):
+            counts[ident, status] = int(count)
     statuses = {ident: account_status(db, ident, records) for ident in ids}
     accounts = [{**statuses[ident], "in_pool": ident in config["content_account_ids"],
                  "concurrency": config["account_limits"].get(ident, 2),

@@ -1,17 +1,15 @@
 import inspect
-import io
 import os
 import tempfile
-import warnings
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import anyio
 from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
-from PIL import Image, ImageOps
-from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy import and_, func, literal, or_, select, text
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
@@ -30,6 +28,7 @@ from .mobile_admin import router as mobile_admin_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.validate()
+    app.state.thumbnail_limiter = anyio.CapacityLimiter(1)
     from .worker_runtime import prepare
     prepare()  # Pin API before proxy, request-pool or queue threads are created.
     initialize_storage()
@@ -163,7 +162,7 @@ def dashboard(db: Session = Depends(get_db)):
     sources = dict(db.execute(select(Item.source, func.count(Item.id)).group_by(Item.source)).all())
     total = sum(sources.values())
     pages, size = db.execute(select(func.count(Asset.id), func.sum(Asset.size_bytes))).one()
-    tagged = db.scalar(select(func.count(func.distinct(ItemTag.item_id)))) or 0
+    tagged = db.scalar(select(func.count(func.distinct(ItemTag.item_id))).with_hint(ItemTag, "FORCE INDEX (ix_item_tags_item)", dialect_name="mysql")) or 0
     return {"total_items": total, "total_pages": pages, "total_bytes": size or 0, "pending_jobs": db.scalar(select(func.count(Job.id)).where(Job.status.in_(["queued", "running"]))) or 0, "untagged_items": total - tagged, "recent_items": [build_item_view(item) for item in recent], "source_counts": sources, "rating_counts": dict(db.execute(select(Item.rating, func.count(Item.id)).group_by(Item.rating)).all())}
 
 
@@ -327,30 +326,40 @@ def asset_text_sections(asset_id: str, db: Session = Depends(get_db)):
 
 
 @api.get("/assets/{asset_id}/thumbnail")
-def asset_thumbnail(asset_id: str, db: Session = Depends(get_db)):
-    asset, path = get_asset(asset_id, db)
-    if not asset.mime_type.startswith("image/"):
-        raise HTTPException(400, "该文件不是图片")
-    cached = resolve_asset_path(f"thumbnails/{asset.sha256[:2]}/{asset.sha256}.webp")
-    if not cached.exists():
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(path) as original:
-                picture = ImageOps.exif_transpose(original)
-                picture.thumbnail((480, 640))
-                picture = picture.convert("RGB")
-                buffer = io.BytesIO()
-                picture.save(buffer, "WEBP", quality=80)
-        assert_storage_available()
-        cached.parent.mkdir(parents=True, exist_ok=True)
-        fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=cached.parent)
-        try:
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(buffer.getvalue())
-            os.replace(temporary, cached)
-        finally:
-            if os.path.exists(temporary):
-                os.unlink(temporary)
+async def asset_thumbnail(asset_id: str, request: Request, db: Session = Depends(get_db)):
+    def lookup():
+        asset, path = get_asset(asset_id, db)
+        if not asset.mime_type.startswith("image/"):
+            raise HTTPException(400, "该文件不是图片")
+        cached = resolve_asset_path(f"thumbnails/{asset.sha256[:2]}/{asset.sha256}.webp")
+        exists = cached.exists()
+        # Waiting covers must hold neither a DB connection nor a worker thread.
+        db.rollback()
+        return path, cached, exists
+    path, cached, exists = await run_in_threadpool(lookup)
+    if exists:
+        return FileResponse(cached, media_type="image/webp")
+    def generate():
+        if cached.exists():
+            return cached
+        from .image_thumbnails import generation_lock, render
+        with generation_lock:
+            if not cached.exists():
+                content = render(path, (480, 640))
+                assert_storage_available()
+                cached.parent.mkdir(parents=True, exist_ok=True)
+                fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=cached.parent)
+                try:
+                    with os.fdopen(fd, "wb") as stream:
+                        stream.write(content)
+                    os.replace(temporary, cached)
+                finally:
+                    if os.path.exists(temporary):
+                        os.unlink(temporary)
+        return cached
+    # Wait asynchronously, outside the shared sync-endpoint pool. A screenful
+    # of uncached covers must not consume all threads needed for health/auth.
+    cached = await anyio.to_thread.run_sync(generate, limiter=request.app.state.thumbnail_limiter)
     return FileResponse(cached, media_type="image/webp")
 
 
@@ -402,27 +411,31 @@ def list_tags(q: str = Query("", max_length=191), source: str = "", limit: int |
     links = select(ItemTag.tag_id, ItemTag.item_id)
     if source:
         links = links.join(Item, Item.id == ItemTag.item_id).where(Item.source == source)
-    if limit is None and not q.strip():
+    term = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    name_filter = or_(Tag.name.ilike(f"%{term}%", escape="\\"), Tag.name_zh.ilike(f"%{term}%", escape="\\"))
+    if limit is None:
         eligible_links = links.subquery()
         totals = select(eligible_links.c.tag_id, func.count(func.distinct(eligible_links.c.item_id)).label('count')).group_by(eligible_links.c.tag_id).subquery()
         query = select(Tag.id, Tag.name, Tag.name_zh, totals.c.count).join(totals, totals.c.tag_id == Tag.id).order_by(Tag.name, Tag.id).offset(offset)
+        if term:
+            query = query.where(name_filter)
         return [{"id": id_, "name": name, "name_zh": name_zh, "display_name": name_zh or name, "count": count} for id_, name, name_zh, count in db.execute(query)]
-    # Select this page before counting links: a small tag search must not group
-    # the entire library. EXISTS also preserves offsets after source filtering.
-    eligible = links.where(ItemTag.tag_id == Tag.id).exists()
-    page = select(Tag.id, Tag.name, Tag.name_zh).where(eligible)
+    # A LIMIT 1 scalar probe keeps MySQL from materializing every tag's source
+    # membership before applying pagination, as a semijoin EXISTS can do.
+    eligible = links.with_only_columns(literal(1), maintain_column_froms=True).where(ItemTag.tag_id == Tag.id).limit(1).scalar_subquery()
+    page = select(Tag.id, Tag.name, Tag.name_zh).where(eligible.is_not(None))
     if q.strip():
-        term = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        page = page.where(or_(Tag.name.ilike(f"%{term}%", escape="\\"), Tag.name_zh.ilike(f"%{term}%", escape="\\")))
-    page = page.order_by(Tag.name, Tag.id).offset(offset)
-    if limit is not None:
-        page = page.limit(limit)
-    selected = page.subquery()
-    query = select(selected.c.id, selected.c.name, selected.c.name_zh, func.count(func.distinct(ItemTag.item_id))).join(ItemTag, ItemTag.tag_id == selected.c.id)
+        page = page.where(name_filter)
+    selected = db.execute(page.order_by(Tag.name, Tag.id).offset(offset).limit(limit)).all()
+    if not selected:
+        return []
+    # Count only the selected IDs, grouping by the compact identity rather than
+    # names and translations. Both reads share the request's DB transaction.
+    query = select(ItemTag.tag_id, func.count(func.distinct(ItemTag.item_id))).where(ItemTag.tag_id.in_([row.id for row in selected]))
     if source:
         query = query.join(Item, Item.id == ItemTag.item_id).where(Item.source == source)
-    query = query.group_by(selected.c.id, selected.c.name, selected.c.name_zh).order_by(selected.c.name, selected.c.id)
-    return [{"id": id_, "name": name, "name_zh": name_zh, "display_name": name_zh or name, "count": count} for id_, name, name_zh, count in db.execute(query)]
+    counts = dict(db.execute(query.group_by(ItemTag.tag_id)).all())
+    return [{"id": id_, "name": name, "name_zh": name_zh, "display_name": name_zh or name, "count": counts[id_]} for id_, name, name_zh in selected if counts.get(id_)]
 
 
 @api.get("/settings")
@@ -462,6 +475,8 @@ from .network_speed import router as network_speed_router
 app.include_router(network_speed_router, prefix="/api")
 from .pixiv_collection import router as pixiv_collection_router
 app.include_router(pixiv_collection_router, prefix="/api")
+from .pixiv_follow_download import router as pixiv_follow_download_router
+app.include_router(pixiv_follow_download_router, prefix="/api")
 from .character_search import router as character_search_router
 app.include_router(character_search_router, prefix="/api")
 from .character_wall import router as character_wall_router

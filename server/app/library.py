@@ -6,14 +6,15 @@ import warnings
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from PIL import Image, ImageOps
+from PIL import Image
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .models import Asset, Item, ItemTag, Tag, new_id
-from .storage import resolve_asset_path, save_blob, validate_collection
+from .storage import resolve_asset_path, save_blob, save_staged_blob, validate_collection
+from .download_staging import StagedFile, stage
 from .video_media import VIDEO_EXTENSIONS, video_mime
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
@@ -50,11 +51,14 @@ def expand_files(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
     input_total = 0
     for raw_name, data in sorted(files, key=lambda file: natural_key(file[0])):
         name = clean_filename(raw_name)
-        input_total += len(data)
-        if len(data) > settings.max_file_bytes or input_total > settings.max_import_bytes:
+        size = data.size if isinstance(data, StagedFile) else len(data)
+        input_total += size
+        if size > settings.max_file_bytes or input_total > settings.max_import_bytes:
             raise ValueError("导入文件超过大小限制")
         suffix = Path(name).suffix.lower()
         if suffix in ARCHIVE_EXTENSIONS:
+            if isinstance(data, StagedFile):
+                data = data.read()
             try:
                 with zipfile.ZipFile(io.BytesIO(data)) as archive:
                     entries = archive.infolist()
@@ -84,7 +88,7 @@ def expand_files(files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
             except (zipfile.BadZipFile, RuntimeError, NotImplementedError) as exc:
                 raise ValueError("无法读取 ZIP/CBZ 压缩包") from exc
         elif suffix in IMAGE_EXTENSIONS | TEXT_EXTENSIONS | VIDEO_EXTENSIONS:
-            total += len(data)
+            total += size
             if total > settings.max_import_bytes or len(output) >= settings.max_import_files:
                 raise ValueError("导入文件总量或数量超过限制")
             output.append((name, data))
@@ -136,15 +140,9 @@ def save_preview_cover(preview, source):
     data, mime = validate_content(clean_filename(name), data)
     if not mime.startswith("image/"):
         raise ValueError("封面必须是图片")
-    with Image.open(io.BytesIO(data)) as original:
-        if original.width * original.height > 36_000_000:
-            raise ValueError("封面像素数量超过限制")
-        picture = ImageOps.exif_transpose(original)
-        picture.thumbnail((640, 960))
-        picture = picture.convert("RGB")
-        buffer = io.BytesIO()
-        picture.save(buffer, "WEBP", quality=82)
-    content = buffer.getvalue()
+    from .image_thumbnails import generation_lock, render
+    with generation_lock:
+        content = render(io.BytesIO(data), (640, 960), quality=82)
     relative, digest = save_blob(content, source=source)
     return {"relative_path": relative, "sha256": digest, "size_bytes": len(content), "mime_type": "image/webp"}
 
@@ -186,7 +184,17 @@ def set_tags(db: Session, item: Item, names: list[str], origin: str = "manual") 
         item.item_tags.append(ItemTag(tag=tag, origin=origin))
 
 
-def import_files(db: Session, files: list[tuple[str, bytes]], *, title: str | None = None, item_type: str = "manga", source: str = "local", source_id: str | None = None, source_url: str | None = None, author: str = "", description: str = "", language: str = "", tags: list[str] | None = None, before_commit=None, checkpoint=None) -> Item:
+def _validate_import_file(name, data):
+    if not isinstance(data, StagedFile):
+        return name, *validate_content(name, data)
+    raw = data.read()
+    content, mime = validate_content(name, raw)
+    # Image/video validation returns the original buffer; text may normalize a
+    # BOM. Only normalized text needs a replacement temporary file.
+    return name, data if content is raw else stage(content), mime
+
+
+def import_files(db: Session, files: list[tuple[str, bytes | StagedFile]], *, title: str | None = None, item_type: str = "manga", source: str = "local", source_id: str | None = None, source_url: str | None = None, author: str = "", description: str = "", language: str = "", tags: list[str] | None = None, before_commit=None, checkpoint=None) -> Item:
     validate_collection(source)
     if item_type not in {"manga", "illustration", "novel", "article"}:
         raise ValueError("不支持的内容类型")
@@ -200,7 +208,7 @@ def import_files(db: Session, files: list[tuple[str, bytes]], *, title: str | No
     if not title or len(title) > 512:
         raise ValueError("标题不能为空且不能超过 512 字符")
     # Validate every input before writing blobs or committing a library item.
-    validated = [(name, *validate_content(name, data)) for name, data in normalized]
+    validated = [_validate_import_file(name, data) for name, data in normalized]
     if tags is not None:
         normalize_tags(tags)
     item = existing or Item(title=title, type=item_type, source=source, source_id=source_id, source_url=source_url, author=author, description=description, language=language)
@@ -208,8 +216,9 @@ def import_files(db: Session, files: list[tuple[str, bytes]], *, title: str | No
         for position, (name, data, mime) in enumerate(validated):
             if checkpoint:
                 checkpoint(93 + int(3 * position / len(validated)))
-            relative, digest = save_blob(data, source=source)
-            item.assets.append(Asset(position=position, relative_path=relative, original_name=name, mime_type=mime, sha256=digest, size_bytes=len(data), status="available"))
+            relative, digest = save_staged_blob(data, source=source) if isinstance(data, StagedFile) else save_blob(data, source=source)
+            size = data.size if isinstance(data, StagedFile) else len(data)
+            item.assets.append(Asset(position=position, relative_path=relative, original_name=name, mime_type=mime, sha256=digest, size_bytes=size, status="available"))
         db.add(item)
         db.flush()
         if tags:

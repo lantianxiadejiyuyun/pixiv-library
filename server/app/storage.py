@@ -126,6 +126,14 @@ def save_blob(data: bytes, *, source: str = "local") -> tuple[str, str]:
     return _save_stream(io.BytesIO(data), source=source, digest=hashlib.sha256(data).hexdigest(), size=len(data))
 
 
+def save_staged_blob(data, *, source: str) -> tuple[str, str]:
+    assert_storage_available()
+    reader, checksum = data.reader(), hashlib.sha256()
+    while chunk := reader.read(1024 * 1024):
+        checksum.update(chunk)
+    return _save_stream(data.reader(), source=source, digest=checksum.hexdigest(), size=data.size)
+
+
 def copy_blob_to_collection(relative_path: str, *, source: str, digest: str, size: int) -> str:
     """Copy and verify immutable content, retaining its original file forever."""
     original = resolve_asset_path(relative_path)

@@ -97,7 +97,7 @@ async function queueMissingCovers() {
   } catch (failure) { error.value = errorMessage(failure) }
   finally { action.value = ''; load(true) }
 }
-onMounted(() => { load(); timer = setInterval(() => load(true), 6000) })
+onMounted(() => { load(); timer = setInterval(() => { if (!document.hidden) void load(true) }, 6000) })
 onBeforeUnmount(() => { disposed = true; requestId++; clearInterval(timer) })
 </script>
 

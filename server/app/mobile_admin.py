@@ -18,6 +18,8 @@ GROUPS = {
 }
 
 TITLES = {
+    ("GET", "/pixiv/follow-download-settings"): "关注作者作品自动下载设置",
+    ("PUT", "/pixiv/follow-download-settings"): "设置关注作者作品自动下载",
     ("GET", "/pixiv/collection-settings"): "主账号收藏自动下载设置",
     ("PUT", "/pixiv/collection-settings"): "设置主账号收藏自动下载",
     ("POST", "/pixiv/bookmarks/sync"): "完整同步主账号收藏",
@@ -137,7 +139,7 @@ platform=平台|account_id=平台账号|main_account_id=检索主账号|content_
 def _group(path):
     if path.startswith(("/network",)):
         return "network"
-    if path.startswith(("/sources", "/platform-endpoints", "/pixiv/collection-settings", "/pixiv/bookmarks")):
+    if path.startswith(("/sources", "/platform-endpoints", "/pixiv/collection-settings", "/pixiv/follow-download-settings", "/pixiv/bookmarks")):
         return "sources"
     if path.startswith(("/jobs", "/queue")):
         return "queue"

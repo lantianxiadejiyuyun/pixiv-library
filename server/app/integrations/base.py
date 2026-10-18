@@ -12,6 +12,8 @@ from urllib.parse import urlparse, urljoin
 
 import httpx
 
+from app.download_staging import DownloadFiles, StagedFile
+
 
 class ConnectorError(ValueError):
     """Safe, user-facing error. Never include remote response bodies or credentials."""
@@ -38,7 +40,7 @@ class RemoteWork:
     language: str = ""
     tags: list[str] = field(default_factory=list)
     rating: str = "unknown"
-    files: list[tuple[str, bytes]] = field(default_factory=list)
+    files: list[tuple[str, bytes | StagedFile]] = field(default_factory=DownloadFiles)
     preview_cover: tuple[str, bytes] | None = None
     metadata_only: bool = False
     remote_page_count: int | None = None
