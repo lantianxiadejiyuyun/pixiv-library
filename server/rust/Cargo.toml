@@ -1,0 +1,54 @@
+[package]
+name = "qiye-server"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[dependencies]
+axum = { version = "0.8.9", features = ["macros","multipart"] }
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "mysql", "sqlite", "chrono", "json", "rust_decimal"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+hmac = "0.12"
+base64 = "0.22"
+rand = "0.8"
+regex = "1"
+subtle = "2"
+thiserror = "2"
+tower = { version = "0.5", features = ["util", "limit"] }
+tower-http = { version = "0.6", features = ["fs", "trace", "catch-panic", "timeout"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+unicode-normalization = "0.1"
+url = "2"
+mime = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
+tempfile = "3"
+fernet = { version = "0.2.2", default-features = false, features = ["rustcrypto"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "multipart", "cookies", "socks", "gzip"] }
+futures-util = "0.3"
+tokio-util = {version="0.7",features=["rt"]}
+httpdate = "1"
+md-5 = "0.10"
+html-escape = "0.2"
+scraper = "0.24"
+libc = "0.2"
+zip = {version="0.6.6",default-features=false,features=["deflate"]}
+sysinfo = "0.36"
+serde_yaml = "0.9"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = {version="0.59",features=["Win32_Foundation","Win32_System_Threading"]}
+
+[dev-dependencies]
+http-body-util = "0.1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

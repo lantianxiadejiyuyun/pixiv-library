@@ -1,0 +1,762 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/ai/analyze",
+    "example_path": "/api/ai/analyze"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/characters/confirm",
+    "example_path": "/api/ai/characters/confirm"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/characters/image-search",
+    "example_path": "/api/ai/characters/image-search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/characters/image/settings",
+    "example_path": "/api/ai/characters/image/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/ai/characters/image/settings",
+    "example_path": "/api/ai/characters/image/settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/characters/search",
+    "example_path": "/api/ai/characters/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/nodes",
+    "example_path": "/api/ai/nodes"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/nodes",
+    "example_path": "/api/ai/nodes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/nodes/deployment",
+    "example_path": "/api/ai/nodes/deployment"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/ai/nodes/routing",
+    "example_path": "/api/ai/nodes/routing"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/ai/nodes/{node_id}",
+    "example_path": "/api/ai/nodes/fixture"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/ai/nodes/{node_id}",
+    "example_path": "/api/ai/nodes/fixture"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/ai/nodes/{node_id}/models",
+    "example_path": "/api/ai/nodes/fixture/models"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/nodes/{node_id}/models",
+    "example_path": "/api/ai/nodes/fixture/models"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/nodes/{node_id}/models/pull",
+    "example_path": "/api/ai/nodes/fixture/models/pull"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/nodes/{node_id}/models/unload",
+    "example_path": "/api/ai/nodes/fixture/models/unload"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/nodes/{node_id}/operations",
+    "example_path": "/api/ai/nodes/fixture/operations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/nodes/{node_id}/operations/{operation_id}",
+    "example_path": "/api/ai/nodes/fixture/operations/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/nodes/{node_id}/services/{service}/{action}",
+    "example_path": "/api/ai/nodes/fixture/services/fixture/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/nodes/{node_id}/test",
+    "example_path": "/api/ai/nodes/fixture/test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/nodes/{node_id}/translation",
+    "example_path": "/api/ai/nodes/fixture/translation"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/nodes/{node_id}/vision",
+    "example_path": "/api/ai/nodes/fixture/vision"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/status",
+    "example_path": "/api/ai/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/app-updates/android",
+    "example_path": "/api/app-updates/android"
+  },
+  {
+    "method": "POST",
+    "path": "/api/app-updates/android",
+    "example_path": "/api/app-updates/android"
+  },
+  {
+    "method": "GET",
+    "path": "/api/app-updates/android/{digest}/apk",
+    "example_path": "/api/app-updates/android/fixture/apk"
+  },
+  {
+    "method": "GET",
+    "path": "/api/assets/{asset_id}/content",
+    "example_path": "/api/assets/fixture/content"
+  },
+  {
+    "method": "HEAD",
+    "path": "/api/assets/{asset_id}/content",
+    "example_path": "/api/assets/fixture/content"
+  },
+  {
+    "method": "GET",
+    "path": "/api/assets/{asset_id}/text-sections",
+    "example_path": "/api/assets/fixture/text-sections"
+  },
+  {
+    "method": "GET",
+    "path": "/api/assets/{asset_id}/thumbnail",
+    "example_path": "/api/assets/fixture/thumbnail"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/login",
+    "example_path": "/api/auth/login"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/logout",
+    "example_path": "/api/auth/logout"
+  },
+  {
+    "method": "GET",
+    "path": "/api/auth/status",
+    "example_path": "/api/auth/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/characters",
+    "example_path": "/api/characters"
+  },
+  {
+    "method": "POST",
+    "path": "/api/characters",
+    "example_path": "/api/characters"
+  },
+  {
+    "method": "POST",
+    "path": "/api/characters/search",
+    "example_path": "/api/characters/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/characters/{tag_id}",
+    "example_path": "/api/characters/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/characters/{tag_id}/profile",
+    "example_path": "/api/characters/fixture/profile"
+  },
+  {
+    "method": "GET",
+    "path": "/api/dashboard",
+    "example_path": "/api/dashboard"
+  },
+  {
+    "method": "POST",
+    "path": "/api/database/export",
+    "example_path": "/api/database/export"
+  },
+  {
+    "method": "GET",
+    "path": "/api/devices",
+    "example_path": "/api/devices"
+  },
+  {
+    "method": "POST",
+    "path": "/api/devices/disconnect",
+    "example_path": "/api/devices/disconnect"
+  },
+  {
+    "method": "POST",
+    "path": "/api/devices/pairing",
+    "example_path": "/api/devices/pairing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/devices/pairing/exchange",
+    "example_path": "/api/devices/pairing/exchange"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/devices/{device_id}",
+    "example_path": "/api/devices/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/favorite-groups",
+    "example_path": "/api/favorite-groups"
+  },
+  {
+    "method": "POST",
+    "path": "/api/favorite-groups",
+    "example_path": "/api/favorite-groups"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/favorite-groups/{group_id}",
+    "example_path": "/api/favorite-groups/fixture"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/favorite-groups/{group_id}",
+    "example_path": "/api/favorite-groups/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/health",
+    "example_path": "/api/health"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/history",
+    "example_path": "/api/history"
+  },
+  {
+    "method": "POST",
+    "path": "/api/imports/folder",
+    "example_path": "/api/imports/folder"
+  },
+  {
+    "method": "POST",
+    "path": "/api/imports/upload",
+    "example_path": "/api/imports/upload"
+  },
+  {
+    "method": "GET",
+    "path": "/api/items",
+    "example_path": "/api/items"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/items/{item_id}",
+    "example_path": "/api/items/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/items/{item_id}",
+    "example_path": "/api/items/fixture"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/items/{item_id}",
+    "example_path": "/api/items/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/items/{item_id}/cover",
+    "example_path": "/api/items/fixture/cover"
+  },
+  {
+    "method": "POST",
+    "path": "/api/items/{item_id}/cover-refresh",
+    "example_path": "/api/items/fixture/cover-refresh"
+  },
+  {
+    "method": "POST",
+    "path": "/api/items/{item_id}/download",
+    "example_path": "/api/items/fixture/download"
+  },
+  {
+    "method": "GET",
+    "path": "/api/items/{item_id}/export",
+    "example_path": "/api/items/fixture/export"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/items/{item_id}/favorite",
+    "example_path": "/api/items/fixture/favorite"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/items/{item_id}/progress",
+    "example_path": "/api/items/fixture/progress"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/items/{item_id}/score",
+    "example_path": "/api/items/fixture/score"
+  },
+  {
+    "method": "POST",
+    "path": "/api/items/{item_id}/translate",
+    "example_path": "/api/items/fixture/translate"
+  },
+  {
+    "method": "GET",
+    "path": "/api/items/{item_id}/translation",
+    "example_path": "/api/items/fixture/translation"
+  },
+  {
+    "method": "POST",
+    "path": "/api/items/{item_id}/visit",
+    "example_path": "/api/items/fixture/visit"
+  },
+  {
+    "method": "GET",
+    "path": "/api/jobs",
+    "example_path": "/api/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/jobs/{job_id}",
+    "example_path": "/api/jobs/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/jobs/{job_id}/cancel",
+    "example_path": "/api/jobs/fixture/cancel"
+  },
+  {
+    "method": "POST",
+    "path": "/api/jobs/{job_id}/retry",
+    "example_path": "/api/jobs/fixture/retry"
+  },
+  {
+    "method": "GET",
+    "path": "/api/library/collections",
+    "example_path": "/api/library/collections"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mobile-admin/catalog",
+    "example_path": "/api/mobile-admin/catalog"
+  },
+  {
+    "method": "GET",
+    "path": "/api/network/clash/groups",
+    "example_path": "/api/network/clash/groups"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/clash/select",
+    "example_path": "/api/network/clash/select"
+  },
+  {
+    "method": "GET",
+    "path": "/api/network/managed",
+    "example_path": "/api/network/managed"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/managed/delay",
+    "example_path": "/api/network/managed/delay"
+  },
+  {
+    "method": "GET",
+    "path": "/api/network/managed/delay-batch",
+    "example_path": "/api/network/managed/delay-batch"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/managed/delay-batch",
+    "example_path": "/api/network/managed/delay-batch"
+  },
+  {
+    "method": "GET",
+    "path": "/api/network/managed/delay-batch/{batch_id}",
+    "example_path": "/api/network/managed/delay-batch/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/managed/enable",
+    "example_path": "/api/network/managed/enable"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/managed/restart",
+    "example_path": "/api/network/managed/restart"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/managed/select",
+    "example_path": "/api/network/managed/select"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/managed/subscriptions",
+    "example_path": "/api/network/managed/subscriptions"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/network/managed/subscriptions/{subscription_id}",
+    "example_path": "/api/network/managed/subscriptions/fixture"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/network/managed/subscriptions/{subscription_id}",
+    "example_path": "/api/network/managed/subscriptions/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/managed/subscriptions/{subscription_id}/refresh",
+    "example_path": "/api/network/managed/subscriptions/fixture/refresh"
+  },
+  {
+    "method": "GET",
+    "path": "/api/network/proxy",
+    "example_path": "/api/network/proxy"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/network/proxy",
+    "example_path": "/api/network/proxy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/proxy/test",
+    "example_path": "/api/network/proxy/test"
+  },
+  {
+    "method": "GET",
+    "path": "/api/network/speed/download",
+    "example_path": "/api/network/speed/download"
+  },
+  {
+    "method": "GET",
+    "path": "/api/network/speed/ping",
+    "example_path": "/api/network/speed/ping"
+  },
+  {
+    "method": "POST",
+    "path": "/api/network/speed/upload",
+    "example_path": "/api/network/speed/upload"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/authors",
+    "example_path": "/api/pixiv/authors"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pixiv/authors/open",
+    "example_path": "/api/pixiv/authors/open"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/authors/{author_id}",
+    "example_path": "/api/pixiv/authors/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/authors/{author_id}/avatar",
+    "example_path": "/api/pixiv/authors/fixture/avatar"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/pixiv/authors/{author_id}/download-settings",
+    "example_path": "/api/pixiv/authors/fixture/download-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/authors/{author_id}/feed",
+    "example_path": "/api/pixiv/authors/fixture/feed"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pixiv/authors/{author_id}/feed",
+    "example_path": "/api/pixiv/authors/fixture/feed"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pixiv/bookmarks/sync",
+    "example_path": "/api/pixiv/bookmarks/sync"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/collection-settings",
+    "example_path": "/api/pixiv/collection-settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/pixiv/collection-settings",
+    "example_path": "/api/pixiv/collection-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pixiv/direct/credentials",
+    "example_path": "/api/pixiv/direct/credentials"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/follow-download-settings",
+    "example_path": "/api/pixiv/follow-download-settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/pixiv/follow-download-settings",
+    "example_path": "/api/pixiv/follow-download-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/tasks/{job_id}",
+    "example_path": "/api/pixiv/tasks/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/watchlist",
+    "example_path": "/api/pixiv/watchlist"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/pixiv/watchlist/settings",
+    "example_path": "/api/pixiv/watchlist/settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pixiv/watchlist/sync",
+    "example_path": "/api/pixiv/watchlist/sync"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pixiv/watchlist/{entry_id}",
+    "example_path": "/api/pixiv/watchlist/fixture"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/pixiv/watchlist/{entry_id}",
+    "example_path": "/api/pixiv/watchlist/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pixiv/watchlist/{entry_id}/check",
+    "example_path": "/api/pixiv/watchlist/fixture/check"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pixiv/watchlist/{entry_id}/read",
+    "example_path": "/api/pixiv/watchlist/fixture/read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/platform-endpoints",
+    "example_path": "/api/platform-endpoints"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/platform-endpoints/{platform}",
+    "example_path": "/api/platform-endpoints/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/queue/covers",
+    "example_path": "/api/queue/covers"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/queue/lanes/{lane}",
+    "example_path": "/api/queue/lanes/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/queue/settings",
+    "example_path": "/api/queue/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/queue/settings",
+    "example_path": "/api/queue/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/queue/status",
+    "example_path": "/api/queue/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/series",
+    "example_path": "/api/series"
+  },
+  {
+    "method": "POST",
+    "path": "/api/series/import",
+    "example_path": "/api/series/import"
+  },
+  {
+    "method": "GET",
+    "path": "/api/series/{series_id}",
+    "example_path": "/api/series/fixture"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/series/{series_id}",
+    "example_path": "/api/series/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/server/performance",
+    "example_path": "/api/server/performance"
+  },
+  {
+    "method": "GET",
+    "path": "/api/settings",
+    "example_path": "/api/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sources",
+    "example_path": "/api/sources"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sources/pixiv/account-roles",
+    "example_path": "/api/sources/pixiv/account-roles"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/sources/pixiv/account-roles",
+    "example_path": "/api/sources/pixiv/account-roles"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sources/pixiv/oauth/finish",
+    "example_path": "/api/sources/pixiv/oauth/finish"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sources/pixiv/oauth/start",
+    "example_path": "/api/sources/pixiv/oauth/start"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sources/{platform}/accounts",
+    "example_path": "/api/sources/fixture/accounts"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/sources/{platform}/accounts/{account_id}",
+    "example_path": "/api/sources/fixture/accounts/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sources/{platform}/import",
+    "example_path": "/api/sources/fixture/import"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sources/{platform}/login",
+    "example_path": "/api/sources/fixture/login"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sources/{platform}/sync",
+    "example_path": "/api/sources/fixture/sync"
+  },
+  {
+    "method": "GET",
+    "path": "/api/subscriptions",
+    "example_path": "/api/subscriptions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/subscriptions",
+    "example_path": "/api/subscriptions"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/subscriptions/{subscription_id}",
+    "example_path": "/api/subscriptions/fixture"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/subscriptions/{subscription_id}",
+    "example_path": "/api/subscriptions/fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/tag-tracking",
+    "example_path": "/api/tag-tracking"
+  },
+  {
+    "method": "POST",
+    "path": "/api/tag-tracking",
+    "example_path": "/api/tag-tracking"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/tag-tracking/{subscription_id}",
+    "example_path": "/api/tag-tracking/fixture"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/tag-tracking/{subscription_id}",
+    "example_path": "/api/tag-tracking/fixture"
+  },
+  {
+    "method": "POST",
+    "path": "/api/tag-tracking/{subscription_id}/check",
+    "example_path": "/api/tag-tracking/fixture/check"
+  },
+  {
+    "method": "GET",
+    "path": "/api/tags",
+    "example_path": "/api/tags"
+  },
+  {
+    "method": "POST",
+    "path": "/api/translation/batch",
+    "example_path": "/api/translation/batch"
+  },
+  {
+    "method": "GET",
+    "path": "/api/translation/settings",
+    "example_path": "/api/translation/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/translation/settings",
+    "example_path": "/api/translation/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/translation/status",
+    "example_path": "/api/translation/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/translation/test",
+    "example_path": "/api/translation/test"
+  }
+]

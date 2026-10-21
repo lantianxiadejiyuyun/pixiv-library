@@ -1,0 +1,841 @@
+[
+  {
+    "table": "favorite_groups",
+    "columns": [
+      "id",
+      "name",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "group-1",
+      "想看",
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "favorite_groups",
+    "columns": [
+      "id",
+      "name",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "group-2",
+      "已看",
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "items",
+    "columns": [
+      "id",
+      "title",
+      "title_zh",
+      "title_zh_source",
+      "type",
+      "source",
+      "source_id",
+      "source_url",
+      "description",
+      "author",
+      "author_source_id",
+      "language",
+      "rating",
+      "rating_origin",
+      "preview_cover",
+      "remote_page_count",
+      "source_bookmark_count",
+      "source_published_at",
+      "user_score",
+      "source_series",
+      "content_state",
+      "content_error",
+      "content_job_id",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "item-1",
+      "原题",
+      "中文标题",
+      "原题",
+      "manga",
+      "pixiv",
+      "123",
+      null,
+      "",
+      "作者甲",
+      "77",
+      "",
+      "unknown",
+      "source",
+      null,
+      2,
+      120,
+      "2025-01-02 03:04:05",
+      0,
+      null,
+      "ready",
+      null,
+      null,
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "items",
+    "columns": [
+      "id",
+      "title",
+      "title_zh",
+      "title_zh_source",
+      "type",
+      "source",
+      "source_id",
+      "source_url",
+      "description",
+      "author",
+      "author_source_id",
+      "language",
+      "rating",
+      "rating_origin",
+      "preview_cover",
+      "remote_page_count",
+      "source_bookmark_count",
+      "source_published_at",
+      "user_score",
+      "source_series",
+      "content_state",
+      "content_error",
+      "content_job_id",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "item-2",
+      "100%_测试",
+      null,
+      null,
+      "illustration",
+      "pixiv",
+      "124",
+      null,
+      "摘要",
+      "作者乙",
+      null,
+      "",
+      "unknown",
+      "source",
+      null,
+      8,
+      null,
+      null,
+      0,
+      null,
+      "metadata",
+      null,
+      null,
+      "2025-01-02 03:04:06",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "items",
+    "columns": [
+      "id",
+      "title",
+      "title_zh",
+      "title_zh_source",
+      "type",
+      "source",
+      "source_id",
+      "source_url",
+      "description",
+      "author",
+      "author_source_id",
+      "language",
+      "rating",
+      "rating_origin",
+      "preview_cover",
+      "remote_page_count",
+      "source_bookmark_count",
+      "source_published_at",
+      "user_score",
+      "source_series",
+      "content_state",
+      "content_error",
+      "content_job_id",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "item-3",
+      "小说",
+      null,
+      null,
+      "novel",
+      "pixiv",
+      "novel:9",
+      null,
+      "",
+      "作者甲",
+      "77",
+      "",
+      "unknown",
+      "source",
+      null,
+      null,
+      null,
+      null,
+      0,
+      null,
+      "metadata",
+      null,
+      null,
+      "2025-01-02 03:04:07",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "items",
+    "columns": [
+      "id",
+      "title",
+      "title_zh",
+      "title_zh_source",
+      "type",
+      "source",
+      "source_id",
+      "source_url",
+      "description",
+      "author",
+      "author_source_id",
+      "language",
+      "rating",
+      "rating_origin",
+      "preview_cover",
+      "remote_page_count",
+      "source_bookmark_count",
+      "source_published_at",
+      "user_score",
+      "source_series",
+      "content_state",
+      "content_error",
+      "content_job_id",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "item-4",
+      "Missing",
+      null,
+      null,
+      "article",
+      "kemono",
+      null,
+      null,
+      "",
+      "Creator",
+      null,
+      "",
+      "unknown",
+      "source",
+      null,
+      null,
+      null,
+      null,
+      0,
+      null,
+      "metadata",
+      null,
+      null,
+      "2025-01-02 03:04:08",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "jobs",
+    "columns": [
+      "id",
+      "kind",
+      "status",
+      "progress",
+      "payload",
+      "result",
+      "error",
+      "attempts",
+      "lease_until",
+      "worker_id",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "job-1",
+      "import",
+      "queued",
+      0.0,
+      {
+        "platform": "pixiv",
+        "remote_id": "123",
+        "download": false,
+        "item_id": "item-1"
+      },
+      null,
+      null,
+      0,
+      null,
+      null,
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "jobs",
+    "columns": [
+      "id",
+      "kind",
+      "status",
+      "progress",
+      "payload",
+      "result",
+      "error",
+      "attempts",
+      "lease_until",
+      "worker_id",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "job-2",
+      "import_content",
+      "running",
+      0.0,
+      {
+        "platform": "pixiv",
+        "remote_id": "124",
+        "download_origin": "manual"
+      },
+      null,
+      null,
+      0,
+      null,
+      null,
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "jobs",
+    "columns": [
+      "id",
+      "kind",
+      "status",
+      "progress",
+      "payload",
+      "result",
+      "error",
+      "attempts",
+      "lease_until",
+      "worker_id",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "job-3",
+      "import",
+      "failed",
+      0.0,
+      {
+        "platform": "pixiv",
+        "remote_id": "125",
+        "retry_queue": true,
+        "retry_last_error": "synthetic failure"
+      },
+      null,
+      "synthetic failure",
+      0,
+      null,
+      null,
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "queue_control",
+    "columns": [
+      "id",
+      "paused",
+      "rate_limit_enabled",
+      "concurrency",
+      "download_account_cursor",
+      "lanes",
+      "min_interval_seconds",
+      "max_interval_seconds",
+      "next_request_at",
+      "backoff_until",
+      "cover_streak",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      1,
+      false,
+      true,
+      2,
+      0,
+      null,
+      2.0,
+      5.0,
+      null,
+      null,
+      0,
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "series",
+    "columns": [
+      "id",
+      "origin",
+      "source",
+      "source_id",
+      "kind",
+      "title",
+      "complete",
+      "revision",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "series-1",
+      "manual",
+      "local",
+      null,
+      "manga",
+      "上下集",
+      true,
+      1,
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "series",
+    "columns": [
+      "id",
+      "origin",
+      "source",
+      "source_id",
+      "kind",
+      "title",
+      "complete",
+      "revision",
+      "created_at",
+      "updated_at"
+    ],
+    "values": [
+      "series-2",
+      "source",
+      "pixiv",
+      "99",
+      "novel",
+      "官方小说",
+      false,
+      2,
+      "2025-01-02 03:04:05",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "tags",
+    "columns": [
+      "id",
+      "name",
+      "name_zh"
+    ],
+    "values": [
+      "tag-a",
+      "alpha",
+      "标签甲"
+    ]
+  },
+  {
+    "table": "tags",
+    "columns": [
+      "id",
+      "name",
+      "name_zh"
+    ],
+    "values": [
+      "tag-b",
+      "beta",
+      null
+    ]
+  },
+  {
+    "table": "tags",
+    "columns": [
+      "id",
+      "name",
+      "name_zh"
+    ],
+    "values": [
+      "tag-c",
+      "100%_literal",
+      null
+    ]
+  },
+  {
+    "table": "tags",
+    "columns": [
+      "id",
+      "name",
+      "name_zh"
+    ],
+    "values": [
+      "tag-unused",
+      "unused",
+      null
+    ]
+  },
+  {
+    "table": "assets",
+    "columns": [
+      "id",
+      "item_id",
+      "position",
+      "relative_path",
+      "original_name",
+      "mime_type",
+      "sha256",
+      "size_bytes",
+      "status",
+      "inline_key",
+      "width",
+      "height"
+    ],
+    "values": [
+      "asset-1",
+      "item-1",
+      0,
+      "fixture/page.png",
+      "page.png",
+      "image/png",
+      "61a962d478221d7a940d8b5cceadcfe827c7ec0b5c0d3f287ff5278b3865666b",
+      78,
+      "available",
+      null,
+      1,
+      1
+    ]
+  },
+  {
+    "table": "assets",
+    "columns": [
+      "id",
+      "item_id",
+      "position",
+      "relative_path",
+      "original_name",
+      "mime_type",
+      "sha256",
+      "size_bytes",
+      "status",
+      "inline_key",
+      "width",
+      "height"
+    ],
+    "values": [
+      "asset-2",
+      "item-1",
+      1,
+      "fixture/page.png",
+      "page.png",
+      "image/png",
+      "61a962d478221d7a940d8b5cceadcfe827c7ec0b5c0d3f287ff5278b3865666b",
+      78,
+      "available",
+      null,
+      1,
+      1
+    ]
+  },
+  {
+    "table": "assets",
+    "columns": [
+      "id",
+      "item_id",
+      "position",
+      "relative_path",
+      "original_name",
+      "mime_type",
+      "sha256",
+      "size_bytes",
+      "status",
+      "inline_key",
+      "width",
+      "height"
+    ],
+    "values": [
+      "asset-3",
+      "item-3",
+      0,
+      "fixture/novel.txt",
+      "novel.txt",
+      "text/plain",
+      "856af1789d3fe454554e99e582b04d6ba865682e3381bfcb347ad2975d3deb09",
+      93,
+      "available",
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "table": "assets",
+    "columns": [
+      "id",
+      "item_id",
+      "position",
+      "relative_path",
+      "original_name",
+      "mime_type",
+      "sha256",
+      "size_bytes",
+      "status",
+      "inline_key",
+      "width",
+      "height"
+    ],
+    "values": [
+      "asset-4",
+      "item-3",
+      1,
+      "fixture/page.png",
+      "page.png",
+      "image/png",
+      "61a962d478221d7a940d8b5cceadcfe827c7ec0b5c0d3f287ff5278b3865666b",
+      78,
+      "available",
+      "uploadedimage:1",
+      1,
+      1
+    ]
+  },
+  {
+    "table": "assets",
+    "columns": [
+      "id",
+      "item_id",
+      "position",
+      "relative_path",
+      "original_name",
+      "mime_type",
+      "sha256",
+      "size_bytes",
+      "status",
+      "inline_key",
+      "width",
+      "height"
+    ],
+    "values": [
+      "asset-5",
+      "item-4",
+      0,
+      "fixture/video.mp4",
+      "video.mp4",
+      "video/mp4",
+      "3c98b6dff998de552444f48876c351aa50b88c4cb07992f175a9341d170790c3",
+      15,
+      "missing",
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "table": "item_favorites",
+    "columns": [
+      "item_id",
+      "created_at"
+    ],
+    "values": [
+      "item-1",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "item_tags",
+    "columns": [
+      "item_id",
+      "tag_id",
+      "origin",
+      "score",
+      "model_version"
+    ],
+    "values": [
+      "item-1",
+      "tag-a",
+      "manual",
+      null,
+      null
+    ]
+  },
+  {
+    "table": "item_tags",
+    "columns": [
+      "item_id",
+      "tag_id",
+      "origin",
+      "score",
+      "model_version"
+    ],
+    "values": [
+      "item-1",
+      "tag-a",
+      "source",
+      null,
+      null
+    ]
+  },
+  {
+    "table": "item_tags",
+    "columns": [
+      "item_id",
+      "tag_id",
+      "origin",
+      "score",
+      "model_version"
+    ],
+    "values": [
+      "item-1",
+      "tag-b",
+      "source",
+      null,
+      null
+    ]
+  },
+  {
+    "table": "item_tags",
+    "columns": [
+      "item_id",
+      "tag_id",
+      "origin",
+      "score",
+      "model_version"
+    ],
+    "values": [
+      "item-2",
+      "tag-c",
+      "source",
+      null,
+      null
+    ]
+  },
+  {
+    "table": "item_tags",
+    "columns": [
+      "item_id",
+      "tag_id",
+      "origin",
+      "score",
+      "model_version"
+    ],
+    "values": [
+      "item-3",
+      "tag-a",
+      "source",
+      null,
+      null
+    ]
+  },
+  {
+    "table": "item_visits",
+    "columns": [
+      "item_id",
+      "viewed_at"
+    ],
+    "values": [
+      "item-3",
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "reading_progress",
+    "columns": [
+      "item_id",
+      "page",
+      "section",
+      "offset",
+      "updated_at"
+    ],
+    "values": [
+      "item-3",
+      0,
+      1,
+      0.4,
+      "2025-01-02 03:04:05"
+    ]
+  },
+  {
+    "table": "series_entries",
+    "columns": [
+      "series_id",
+      "item_id",
+      "position",
+      "label"
+    ],
+    "values": [
+      "series-1",
+      "item-1",
+      0,
+      "上"
+    ]
+  },
+  {
+    "table": "series_entries",
+    "columns": [
+      "series_id",
+      "item_id",
+      "position",
+      "label"
+    ],
+    "values": [
+      "series-1",
+      "item-3",
+      1,
+      "下"
+    ]
+  },
+  {
+    "table": "series_entries",
+    "columns": [
+      "series_id",
+      "item_id",
+      "position",
+      "label"
+    ],
+    "values": [
+      "series-2",
+      "item-3",
+      0,
+      ""
+    ]
+  },
+  {
+    "table": "favorite_group_items",
+    "columns": [
+      "group_id",
+      "item_id"
+    ],
+    "values": [
+      "group-1",
+      "item-1"
+    ]
+  }
+]

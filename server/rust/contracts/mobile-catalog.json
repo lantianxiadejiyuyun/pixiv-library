@@ -1,0 +1,4554 @@
+{
+  "version": 1,
+  "groups": {
+    "overview": "运行概况",
+    "sources": "平台与账号",
+    "queue": "任务与队列",
+    "subscriptions": "内容订阅",
+    "network": "代理与节点",
+    "ai": "AI 与汉化",
+    "library": "作品与书库",
+    "devices": "设备与服务器"
+  },
+  "labels": {
+    "platform": "平台",
+    "account_id": "平台账号",
+    "main_account_id": "检索主账号",
+    "content_account_id": "图片下载账号",
+    "content_account_ids": "自动图片下载账号",
+    "manual_account_ids": "手动下载账号",
+    "retry_account_ids": "重试权限账号",
+    "detail_account_ids": "作品详情与正文账号",
+    "check_account_ids": "作者资料账号",
+    "account_limits": "每账号并发",
+    "enabled": "启用",
+    "paused": "暂停",
+    "concurrency": "并发数",
+    "rate_limit_enabled": "启用请求限流",
+    "min_interval_seconds": "最小请求间隔（秒）",
+    "max_interval_seconds": "最大请求间隔（秒）",
+    "request_interval_seconds": "请求间隔（秒）",
+    "lane": "队列",
+    "job_id": "任务",
+    "item_id": "作品",
+    "item_ids": "作品",
+    "subscription_id": "订阅",
+    "device_id": "设备",
+    "series_id": "系列",
+    "tag_id": "人物标签",
+    "batch_id": "测速批次",
+    "node_id": "节点",
+    "controller_node_id": "AI 控制器节点",
+    "image_node_id": "图片识别节点（留空使用本机）",
+    "key": "控制器密钥",
+    "operation_id": "模型任务编号",
+    "action": "容器操作",
+    "node_ids": "节点",
+    "label": "名称",
+    "username": "登录账号",
+    "password": "密码",
+    "credentials": "高级账号凭据",
+    "session_id": "授权会话",
+    "code": "授权码",
+    "url": "链接",
+    "remote_id": "平台作品编号",
+    "target_type": "订阅类型",
+    "target": "作者／标签／关键词",
+    "auto_download": "自动下载正文",
+    "content_scope": "内容范围",
+    "interval_minutes": "检查间隔（分钟）",
+    "interval_hours": "更新间隔（小时）",
+    "auto_update": "自动更新",
+    "fetch_via_proxy": "通过当前代理更新",
+    "proxy_url": "代理地址",
+    "proxy_username": "代理用户名",
+    "proxy_password": "代理密码",
+    "controller_url": "Clash 控制器地址",
+    "controller_secret": "控制器密钥",
+    "group": "策略组",
+    "node": "节点名称",
+    "custom_url": "自定义接口地址",
+    "admin_password": "管理员密码",
+    "provider": "模型类型",
+    "base_url": "模型地址",
+    "model": "模型名称",
+    "api_key": "接口密钥",
+    "use_proxy": "使用代理",
+    "consent": "同意发送所选内容进行处理",
+    "force": "重新处理已有结果",
+    "limit": "数量上限",
+    "source": "来源平台",
+    "type": "内容类型",
+    "q": "搜索关键词",
+    "status": "状态",
+    "kind": "任务类型",
+    "page": "页码",
+    "page_size": "每页数量",
+    "sort": "排序",
+    "downloaded": "仅已下载",
+    "favorite": "仅收藏",
+    "history": "仅浏览历史",
+    "favorite_group": "收藏分组",
+    "tag": "标签",
+    "author": "作者",
+    "rating": "内容分级",
+    "title": "标题",
+    "description": "介绍",
+    "tags": "标签",
+    "paths": "服务器相对路径",
+    "recursive": "包含子目录",
+    "server_url": "手机可访问的服务器地址",
+    "notes": "更新说明",
+    "file": "文件",
+    "files": "文件",
+    "clear_api_key": "清除已保存密钥",
+    "name": "名称",
+    "items": "作品列表",
+    "position": "顺序",
+    "title_zh": "中文标题",
+    "name_zh": "中文名称",
+    "language": "语言",
+    "created_at": "创建时间",
+    "updated_at": "更新时间",
+    "last_error": "最近错误",
+    "retry_last_error": "上次失败原因",
+    "original_queue": "原队列",
+    "error": "错误",
+    "message": "说明",
+    "progress": "进度",
+    "result": "结果",
+    "accounts": "账号",
+    "subscriptions": "订阅",
+    "nodes": "节点",
+    "id": "编号",
+    "total": "总数",
+    "total_items": "作品数",
+    "total_pages": "文件数",
+    "total_bytes": "总字节数",
+    "pending_jobs": "待处理任务",
+    "untagged_items": "无标签作品",
+    "source_counts": "平台统计",
+    "rating_counts": "分级统计",
+    "recent_items": "最近作品",
+    "auth_status": "登录状态",
+    "device_name": "设备名称",
+    "expires_at": "到期时间",
+    "last_used_at": "最近使用",
+    "revoked_at": "撤销时间",
+    "running": "运行中",
+    "completed": "已完成",
+    "failed": "失败",
+    "queued": "等待中",
+    "active": "当前任务",
+    "lanes": "各独立队列",
+    "token": "凭据",
+    "access_token": "授权凭据",
+    "qr_payload": "绑定码",
+    "authorization_url": "授权链接",
+    "login_url": "授权链接",
+    "has_api_key": "已保存密钥",
+    "effective_url": "当前接口地址",
+    "default_url": "默认接口地址",
+    "state": "状态",
+    "healthy": "健康",
+    "current": "当前",
+    "content_state": "正文状态",
+    "page_count": "文件数",
+    "url_valid": "地址有效",
+    "remote_page_count": "平台总页数",
+    "content_job_id": "正文任务",
+    "user_score": "我的评分",
+    "is_favorite": "已收藏",
+    "favorite_group_ids": "收藏分组",
+    "group_ids": "收藏分组",
+    "section": "章节",
+    "offset": "位置比例",
+    "rows": "记录",
+    "label_zh": "中文名称",
+    "service": "服务",
+    "query": "搜索内容",
+    "work_title": "作品标题",
+    "candidate_name": "人物名称",
+    "character_id": "人物编号",
+    "character_name": "人物名称",
+    "overwrite": "覆盖已有资料",
+    "pause_reason": "暂停原因",
+    "diagnostic": "运行诊断",
+    "reasons": "原因",
+    "changed_at": "操作时间",
+    "resume_at": "预计恢复时间"
+  },
+  "actions": [
+    {
+      "id": "GET /server/performance",
+      "method": "GET",
+      "path": "/server/performance",
+      "title": "服务器性能面板",
+      "group": "overview",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /tag-tracking",
+      "method": "GET",
+      "path": "/tag-tracking",
+      "title": "标签追踪列表",
+      "group": "subscriptions",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /tag-tracking",
+      "method": "POST",
+      "path": "/tag-tracking",
+      "title": "添加标签追踪与下载",
+      "group": "subscriptions",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "pixiv",
+              "picacg",
+              "kemono"
+            ],
+            "title": "Platform",
+            "default": "pixiv"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Tags"
+          },
+          "auto_download": {
+            "type": "boolean",
+            "title": "Auto Download",
+            "default": true
+          },
+          "content_scope": {
+            "type": "string",
+            "enum": [
+              "images",
+              "novels",
+              "all"
+            ],
+            "title": "Content Scope",
+            "default": "all"
+          },
+          "interval_minutes": {
+            "type": "integer",
+            "maximum": 10080.0,
+            "minimum": 30.0,
+            "title": "Interval Minutes",
+            "default": 360
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tags"
+        ],
+        "title": "TagTrackingInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PATCH /tag-tracking/{subscription_id}",
+      "method": "PATCH",
+      "path": "/tag-tracking/{subscription_id}",
+      "title": "设置标签追踪与自动下载",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "subscription_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Subscription Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "nullable": true
+          },
+          "auto_download": {
+            "type": "boolean",
+            "title": "Auto Download",
+            "nullable": true
+          },
+          "content_scope": {
+            "type": "string",
+            "enum": [
+              "images",
+              "novels",
+              "all"
+            ],
+            "title": "Content Scope",
+            "nullable": true
+          },
+          "interval_minutes": {
+            "type": "integer",
+            "maximum": 10080.0,
+            "minimum": 30.0,
+            "title": "Interval Minutes",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TagTrackingPatch"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /tag-tracking/{subscription_id}",
+      "method": "DELETE",
+      "path": "/tag-tracking/{subscription_id}",
+      "title": "取消标签追踪",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "subscription_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Subscription Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "POST /tag-tracking/{subscription_id}/check",
+      "method": "POST",
+      "path": "/tag-tracking/{subscription_id}/check",
+      "title": "立即检查标签更新",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "subscription_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Subscription Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /pixiv/follow-download-settings",
+      "method": "GET",
+      "path": "/pixiv/follow-download-settings",
+      "title": "关注作者作品自动下载设置",
+      "group": "sources",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /pixiv/follow-download-settings",
+      "method": "PUT",
+      "path": "/pixiv/follow-download-settings",
+      "title": "设置关注作者作品自动下载",
+      "group": "sources",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "FollowDownloadInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /pixiv/collection-settings",
+      "method": "GET",
+      "path": "/pixiv/collection-settings",
+      "title": "主账号收藏自动下载设置",
+      "group": "sources",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /pixiv/collection-settings",
+      "method": "PUT",
+      "path": "/pixiv/collection-settings",
+      "title": "设置主账号收藏自动下载",
+      "group": "sources",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "PolicyInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /pixiv/bookmarks/sync",
+      "method": "POST",
+      "path": "/pixiv/bookmarks/sync",
+      "title": "完整同步主账号收藏",
+      "group": "sources",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /pixiv/authors/{author_id}/download-settings",
+      "method": "PUT",
+      "path": "/pixiv/authors/{author_id}/download-settings",
+      "title": "作者作品与收藏下载设置",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "author_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Author Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "download_works": {
+            "type": "boolean",
+            "title": "Download Works"
+          },
+          "download_bookmarks": {
+            "type": "boolean",
+            "title": "Download Bookmarks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "download_works",
+          "download_bookmarks"
+        ],
+        "title": "AuthorDownloadInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /pixiv/watchlist",
+      "method": "GET",
+      "path": "/pixiv/watchlist",
+      "title": "追更列表",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "kind",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "enum": [
+              "novel",
+              "manga"
+            ],
+            "type": "string",
+            "title": "Kind",
+            "nullable": true
+          }
+        },
+        {
+          "name": "q",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 100,
+            "default": "",
+            "title": "Q"
+          }
+        },
+        {
+          "name": "updates",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "Updates"
+          }
+        },
+        {
+          "name": "page",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 1000,
+            "minimum": 1,
+            "default": 1,
+            "title": "Page"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /pixiv/watchlist/sync",
+      "method": "POST",
+      "path": "/pixiv/watchlist/sync",
+      "title": "同步 Pixiv 追更列表",
+      "group": "subscriptions",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /pixiv/watchlist/settings",
+      "method": "PUT",
+      "path": "/pixiv/watchlist/settings",
+      "title": "追更检查设置",
+      "group": "subscriptions",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "interval_minutes": {
+            "type": "integer",
+            "maximum": 10080.0,
+            "minimum": 30.0,
+            "title": "Interval Minutes",
+            "default": 60
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "SettingsInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /pixiv/watchlist/{entry_id}",
+      "method": "GET",
+      "path": "/pixiv/watchlist/{entry_id}",
+      "title": "追更系列目录",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "entry_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Entry Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /pixiv/watchlist/{entry_id}",
+      "method": "PUT",
+      "path": "/pixiv/watchlist/{entry_id}",
+      "title": "设置系列追更与自动下载",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "entry_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Entry Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "nullable": true
+          },
+          "auto_download": {
+            "type": "boolean",
+            "title": "Auto Download",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "EntryInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /pixiv/watchlist/{entry_id}/read",
+      "method": "POST",
+      "path": "/pixiv/watchlist/{entry_id}/read",
+      "title": "追更标记已读",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "entry_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Entry Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /pixiv/watchlist/{entry_id}/check",
+      "method": "POST",
+      "path": "/pixiv/watchlist/{entry_id}/check",
+      "title": "检查追更系列",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "entry_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Entry Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /ai/nodes",
+      "method": "GET",
+      "path": "/ai/nodes",
+      "title": "远程 AI 节点",
+      "group": "ai",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/nodes",
+      "method": "POST",
+      "path": "/ai/nodes",
+      "title": "添加 AI 控制器",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Base Url"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 32,
+            "format": "password",
+            "writeOnly": true,
+            "title": "Key",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "base_url"
+        ],
+        "title": "NodeInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /ai/nodes/deployment",
+      "method": "GET",
+      "path": "/ai/nodes/deployment",
+      "title": "下载 AI 节点部署包",
+      "group": "ai",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": true,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /ai/nodes/routing",
+      "method": "PUT",
+      "path": "/ai/nodes/routing",
+      "title": "选择图片识别节点",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "image_node_id": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Image Node Id",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RoutingInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /ai/nodes/{node_id}",
+      "method": "PUT",
+      "path": "/ai/nodes/{node_id}",
+      "title": "修改 AI 节点",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Base Url"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 32,
+            "format": "password",
+            "writeOnly": true,
+            "title": "Key",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "base_url"
+        ],
+        "title": "NodeInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /ai/nodes/{node_id}",
+      "method": "DELETE",
+      "path": "/ai/nodes/{node_id}",
+      "title": "移除 AI 节点连接",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "POST /ai/nodes/{node_id}/test",
+      "method": "POST",
+      "path": "/ai/nodes/{node_id}/test",
+      "title": "测试 AI 控制器",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /ai/nodes/{node_id}/vision",
+      "method": "GET",
+      "path": "/ai/nodes/{node_id}/vision",
+      "title": "远程图像模型状态",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/nodes/{node_id}/services/{service}/{action}",
+      "method": "POST",
+      "path": "/ai/nodes/{node_id}/services/{service}/{action}",
+      "title": "控制 AI 容器",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        },
+        {
+          "name": "service",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "enum": [
+              "ollama",
+              "vision"
+            ],
+            "type": "string",
+            "title": "Service"
+          }
+        },
+        {
+          "name": "action",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "enum": [
+              "start",
+              "stop",
+              "restart"
+            ],
+            "type": "string",
+            "title": "Action"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "GET /ai/nodes/{node_id}/models",
+      "method": "GET",
+      "path": "/ai/nodes/{node_id}/models",
+      "title": "远程 Ollama 模型",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/nodes/{node_id}/models/pull",
+      "method": "POST",
+      "path": "/ai/nodes/{node_id}/models/pull",
+      "title": "下载远程模型",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 191,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/@:+-]{0,190}$",
+            "title": "Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "ModelInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/nodes/{node_id}/models/unload",
+      "method": "POST",
+      "path": "/ai/nodes/{node_id}/models/unload",
+      "title": "释放远程模型内存",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 191,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/@:+-]{0,190}$",
+            "title": "Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "ModelInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /ai/nodes/{node_id}/models",
+      "method": "DELETE",
+      "path": "/ai/nodes/{node_id}/models",
+      "title": "删除远程模型",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 191,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/@:+-]{0,190}$",
+            "title": "Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "ModelInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "GET /ai/nodes/{node_id}/operations",
+      "method": "GET",
+      "path": "/ai/nodes/{node_id}/operations",
+      "title": "远程模型任务",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /ai/nodes/{node_id}/operations/{operation_id}",
+      "method": "GET",
+      "path": "/ai/nodes/{node_id}/operations/{operation_id}",
+      "title": "查看模型下载进度",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        },
+        {
+          "name": "operation_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Operation Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/nodes/{node_id}/translation",
+      "method": "POST",
+      "path": "/ai/nodes/{node_id}/translation",
+      "title": "使用远程汉化模型",
+      "group": "ai",
+      "parameters": [
+        {
+          "name": "node_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Node Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 191,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/@:+-]{0,190}$",
+            "title": "Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "ModelInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /health",
+      "method": "GET",
+      "path": "/health",
+      "title": "服务健康",
+      "group": "overview",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /dashboard",
+      "method": "GET",
+      "path": "/dashboard",
+      "title": "书库概况",
+      "group": "overview",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /settings",
+      "method": "GET",
+      "path": "/settings",
+      "title": "服务器设置",
+      "group": "devices",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /sources",
+      "method": "GET",
+      "path": "/sources",
+      "title": "平台与账号",
+      "group": "sources",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /sources/{platform}/accounts",
+      "method": "POST",
+      "path": "/sources/{platform}/accounts",
+      "title": "导入账号凭据",
+      "group": "sources",
+      "parameters": [
+        {
+          "name": "platform",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Platform",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm"
+            ]
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 191,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "credentials": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Credentials"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "credentials"
+        ],
+        "title": "AccountInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /sources/{platform}/accounts/{account_id}",
+      "method": "DELETE",
+      "path": "/sources/{platform}/accounts/{account_id}",
+      "title": "移除平台账号",
+      "group": "sources",
+      "parameters": [
+        {
+          "name": "platform",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Platform",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono"
+            ]
+          }
+        },
+        {
+          "name": "account_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Account Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "POST /sources/{platform}/login",
+      "method": "POST",
+      "path": "/sources/{platform}/login",
+      "title": "登录平台账号",
+      "group": "sources",
+      "parameters": [
+        {
+          "name": "platform",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Platform",
+            "enum": [
+              "ehentai",
+              "picacg",
+              "jm"
+            ]
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 191,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "format": "password",
+            "title": "Password",
+            "writeOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "username",
+          "password"
+        ],
+        "title": "PlatformLogin"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /sources/pixiv/oauth/start",
+      "method": "POST",
+      "path": "/sources/pixiv/oauth/start",
+      "title": "开始 Pixiv 授权",
+      "group": "sources",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /sources/pixiv/oauth/finish",
+      "method": "POST",
+      "path": "/sources/pixiv/oauth/finish",
+      "title": "完成 Pixiv 授权",
+      "group": "sources",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Session Id"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 8192,
+            "minLength": 1,
+            "format": "password",
+            "title": "Code",
+            "writeOnly": true
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 191,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "code",
+          "label"
+        ],
+        "title": "OAuthFinish"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /sources/pixiv/account-roles",
+      "method": "GET",
+      "path": "/sources/pixiv/account-roles",
+      "title": "查看 Pixiv 账号分工",
+      "group": "sources",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /sources/pixiv/account-roles",
+      "method": "PUT",
+      "path": "/sources/pixiv/account-roles",
+      "title": "保存 Pixiv 账号分工",
+      "group": "sources",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "main_account_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Main Account Id",
+            "nullable": true
+          },
+          "content_account_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Content Account Id",
+            "nullable": true
+          },
+          "content_account_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "minLength": 1
+            },
+            "type": "array",
+            "title": "Content Account Ids",
+            "nullable": true
+          },
+          "manual_account_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "minLength": 1
+            },
+            "type": "array",
+            "title": "Manual Account Ids"
+          },
+          "retry_account_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "minLength": 1
+            },
+            "type": "array",
+            "title": "Retry Account Ids"
+          },
+          "detail_account_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "minLength": 1
+            },
+            "type": "array",
+            "title": "Detail Account Ids"
+          },
+          "check_account_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "minLength": 1
+            },
+            "type": "array",
+            "title": "Check Account Ids"
+          },
+          "account_limits": {
+            "additionalProperties": {
+              "type": "integer",
+              "maximum": 8.0,
+              "minimum": 1.0
+            },
+            "propertyNames": {
+              "maxLength": 36,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Account Limits"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "RolesInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /sources/{platform}/import",
+      "method": "POST",
+      "path": "/sources/{platform}/import",
+      "title": "导入平台作品",
+      "group": "sources",
+      "parameters": [
+        {
+          "name": "platform",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Platform",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono"
+            ]
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Url",
+            "nullable": true
+          },
+          "remote_id": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Remote Id",
+            "nullable": true
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "ImportInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /sources/{platform}/sync",
+      "method": "POST",
+      "path": "/sources/{platform}/sync",
+      "title": "同步关注内容",
+      "group": "sources",
+      "parameters": [
+        {
+          "name": "platform",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Platform",
+            "enum": [
+              "pixiv",
+              "picacg"
+            ]
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "SyncInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /platform-endpoints",
+      "method": "GET",
+      "path": "/platform-endpoints",
+      "title": "查看平台接口地址",
+      "group": "sources",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /platform-endpoints/{platform}",
+      "method": "PUT",
+      "path": "/platform-endpoints/{platform}",
+      "title": "修改平台接口地址",
+      "group": "sources",
+      "parameters": [
+        {
+          "name": "platform",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Platform",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono"
+            ]
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "custom_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Custom Url",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "admin_password": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Admin Password",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "EndpointInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /jobs",
+      "method": "GET",
+      "path": "/jobs",
+      "title": "任务列表",
+      "group": "queue",
+      "parameters": [
+        {
+          "name": "queue",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "title": "Queue",
+            "nullable": true
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /jobs/{job_id}",
+      "method": "GET",
+      "path": "/jobs/{job_id}",
+      "title": "任务详情",
+      "group": "queue",
+      "parameters": [
+        {
+          "name": "job_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /jobs/{job_id}/retry",
+      "method": "POST",
+      "path": "/jobs/{job_id}/retry",
+      "title": "重试任务",
+      "group": "queue",
+      "parameters": [
+        {
+          "name": "job_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /jobs/{job_id}/cancel",
+      "method": "POST",
+      "path": "/jobs/{job_id}/cancel",
+      "title": "取消任务",
+      "group": "queue",
+      "parameters": [
+        {
+          "name": "job_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /queue/settings",
+      "method": "GET",
+      "path": "/queue/settings",
+      "title": "查看采集设置",
+      "group": "queue",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /queue/settings",
+      "method": "PUT",
+      "path": "/queue/settings",
+      "title": "修改采集设置",
+      "group": "queue",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "paused": {
+            "type": "boolean",
+            "title": "Paused",
+            "nullable": true
+          },
+          "pause_reason": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "maintenance"
+            ],
+            "title": "Pause Reason",
+            "nullable": true
+          },
+          "rate_limit_enabled": {
+            "type": "boolean",
+            "title": "Rate Limit Enabled",
+            "nullable": true
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "nullable": true
+          },
+          "min_interval_seconds": {
+            "type": "number",
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Min Interval Seconds",
+            "nullable": true
+          },
+          "max_interval_seconds": {
+            "type": "number",
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Max Interval Seconds",
+            "nullable": true
+          },
+          "request_interval_seconds": {
+            "type": "number",
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Request Interval Seconds",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "QueueSettingsPatch"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /queue/status",
+      "method": "GET",
+      "path": "/queue/status",
+      "title": "队列运行状态",
+      "group": "queue",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /queue/lanes/{lane}",
+      "method": "PUT",
+      "path": "/queue/lanes/{lane}",
+      "title": "设置独立队列",
+      "group": "queue",
+      "parameters": [
+        {
+          "name": "lane",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Lane",
+            "enum": [
+              "retry",
+              "manual_download",
+              "download",
+              "details",
+              "checks",
+              "ai",
+              "translation",
+              "other"
+            ]
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "paused": {
+            "type": "boolean",
+            "title": "Paused",
+            "nullable": true
+          },
+          "pause_reason": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "maintenance"
+            ],
+            "title": "Pause Reason",
+            "nullable": true
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "LanePatch"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /queue/covers",
+      "method": "POST",
+      "path": "/queue/covers",
+      "title": "补全缺失封面",
+      "group": "queue",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono"
+            ],
+            "title": "Source",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Value",
+        "nullable": true
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /subscriptions",
+      "method": "GET",
+      "path": "/subscriptions",
+      "title": "订阅列表",
+      "group": "subscriptions",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /subscriptions",
+      "method": "POST",
+      "path": "/subscriptions",
+      "title": "添加内容订阅",
+      "group": "subscriptions",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono"
+            ],
+            "title": "Platform"
+          },
+          "target_type": {
+            "type": "string",
+            "enum": [
+              "author",
+              "tag",
+              "search"
+            ],
+            "title": "Target Type"
+          },
+          "target": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Target"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 191,
+            "title": "Label",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "auto_download": {
+            "type": "boolean",
+            "title": "Auto Download",
+            "default": false
+          },
+          "download_works": {
+            "type": "boolean",
+            "title": "Download Works",
+            "nullable": true
+          },
+          "download_bookmarks": {
+            "type": "boolean",
+            "title": "Download Bookmarks",
+            "nullable": true
+          },
+          "content_scope": {
+            "type": "string",
+            "enum": [
+              "images",
+              "novels",
+              "all"
+            ],
+            "title": "Content Scope",
+            "nullable": true
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id",
+            "nullable": true
+          },
+          "interval_minutes": {
+            "type": "integer",
+            "maximum": 10080.0,
+            "minimum": 30.0,
+            "title": "Interval Minutes",
+            "default": 360
+          }
+        },
+        "type": "object",
+        "required": [
+          "platform",
+          "target_type",
+          "target"
+        ],
+        "title": "SubscriptionInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PATCH /subscriptions/{subscription_id}",
+      "method": "PATCH",
+      "path": "/subscriptions/{subscription_id}",
+      "title": "修改内容订阅",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "subscription_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Subscription Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Target",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 191,
+            "title": "Label",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "nullable": true
+          },
+          "auto_download": {
+            "type": "boolean",
+            "title": "Auto Download",
+            "nullable": true
+          },
+          "download_works": {
+            "type": "boolean",
+            "title": "Download Works",
+            "nullable": true
+          },
+          "download_bookmarks": {
+            "type": "boolean",
+            "title": "Download Bookmarks",
+            "nullable": true
+          },
+          "content_scope": {
+            "type": "string",
+            "enum": [
+              "images",
+              "novels",
+              "all"
+            ],
+            "title": "Content Scope",
+            "nullable": true
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id",
+            "nullable": true
+          },
+          "interval_minutes": {
+            "type": "integer",
+            "maximum": 10080.0,
+            "minimum": 30.0,
+            "title": "Interval Minutes",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "SubscriptionPatch"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /subscriptions/{subscription_id}",
+      "method": "DELETE",
+      "path": "/subscriptions/{subscription_id}",
+      "title": "删除内容订阅",
+      "group": "subscriptions",
+      "parameters": [
+        {
+          "name": "subscription_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Subscription Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "GET /network/proxy",
+      "method": "GET",
+      "path": "/network/proxy",
+      "title": "查看代理配置",
+      "group": "network",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /network/proxy",
+      "method": "PUT",
+      "path": "/network/proxy",
+      "title": "修改代理配置",
+      "group": "network",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "proxy_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Proxy Url",
+            "default": ""
+          },
+          "proxy_username": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Proxy Username",
+            "default": ""
+          },
+          "proxy_password": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Proxy Password",
+            "nullable": true
+          },
+          "controller_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Controller Url",
+            "default": ""
+          },
+          "controller_secret": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Controller Secret",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "ProxyInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /network/proxy/test",
+      "method": "POST",
+      "path": "/network/proxy/test",
+      "title": "测试平台连通性",
+      "group": "network",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono"
+            ],
+            "title": "Platform"
+          }
+        },
+        "type": "object",
+        "required": [
+          "platform"
+        ],
+        "title": "TestInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /network/clash/groups",
+      "method": "GET",
+      "path": "/network/clash/groups",
+      "title": "Clash 策略组",
+      "group": "network",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /network/clash/select",
+      "method": "POST",
+      "path": "/network/clash/select",
+      "title": "选择 Clash 节点",
+      "group": "network",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "group": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Group"
+          },
+          "node": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Node"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "node"
+        ],
+        "title": "SelectionInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /network/managed",
+      "method": "GET",
+      "path": "/network/managed",
+      "title": "内置代理与节点",
+      "group": "network",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /network/managed/subscriptions",
+      "method": "POST",
+      "path": "/network/managed/subscriptions",
+      "title": "导入代理订阅",
+      "group": "network",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "format": "password",
+            "title": "Url",
+            "writeOnly": true
+          },
+          "auto_update": {
+            "type": "boolean",
+            "title": "Auto Update",
+            "default": true
+          },
+          "interval_hours": {
+            "type": "integer",
+            "maximum": 168.0,
+            "minimum": 1.0,
+            "title": "Interval Hours",
+            "default": 24
+          },
+          "fetch_via_proxy": {
+            "type": "boolean",
+            "title": "Fetch Via Proxy",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "SubscriptionInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PATCH /network/managed/subscriptions/{subscription_id}",
+      "method": "PATCH",
+      "path": "/network/managed/subscriptions/{subscription_id}",
+      "title": "修改代理订阅",
+      "group": "network",
+      "parameters": [
+        {
+          "name": "subscription_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Subscription Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label",
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "format": "password",
+            "writeOnly": true,
+            "title": "Url",
+            "nullable": true
+          },
+          "auto_update": {
+            "type": "boolean",
+            "title": "Auto Update",
+            "nullable": true
+          },
+          "interval_hours": {
+            "type": "integer",
+            "maximum": 168.0,
+            "minimum": 1.0,
+            "title": "Interval Hours",
+            "nullable": true
+          },
+          "fetch_via_proxy": {
+            "type": "boolean",
+            "title": "Fetch Via Proxy",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "SubscriptionPatch"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /network/managed/subscriptions/{subscription_id}/refresh",
+      "method": "POST",
+      "path": "/network/managed/subscriptions/{subscription_id}/refresh",
+      "title": "更新代理订阅",
+      "group": "network",
+      "parameters": [
+        {
+          "name": "subscription_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Subscription Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /network/managed/subscriptions/{subscription_id}",
+      "method": "DELETE",
+      "path": "/network/managed/subscriptions/{subscription_id}",
+      "title": "删除代理订阅",
+      "group": "network",
+      "parameters": [
+        {
+          "name": "subscription_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Subscription Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "POST /network/managed/enable",
+      "method": "POST",
+      "path": "/network/managed/enable",
+      "title": "启用或关闭内置代理",
+      "group": "network",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "EnableInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /network/managed/select",
+      "method": "POST",
+      "path": "/network/managed/select",
+      "title": "选择代理节点",
+      "group": "network",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Node Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id"
+        ],
+        "title": "NodeInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /network/managed/delay",
+      "method": "POST",
+      "path": "/network/managed/delay",
+      "title": "测试单个节点",
+      "group": "network",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Node Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id"
+        ],
+        "title": "NodeInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /network/managed/delay-batch",
+      "method": "POST",
+      "path": "/network/managed/delay-batch",
+      "title": "一键节点测速",
+      "group": "network",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "node_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Node Ids",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Value",
+        "nullable": true
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /network/managed/delay-batch",
+      "method": "GET",
+      "path": "/network/managed/delay-batch",
+      "title": "最近测速结果",
+      "group": "network",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /network/managed/delay-batch/{batch_id}",
+      "method": "GET",
+      "path": "/network/managed/delay-batch/{batch_id}",
+      "title": "查看测速批次",
+      "group": "network",
+      "parameters": [
+        {
+          "name": "batch_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Batch Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /network/managed/restart",
+      "method": "POST",
+      "path": "/network/managed/restart",
+      "title": "重启内置代理",
+      "group": "network",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "GET /ai/status",
+      "method": "GET",
+      "path": "/ai/status",
+      "title": "本地 AI 状态",
+      "group": "ai",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/analyze",
+      "method": "POST",
+      "path": "/ai/analyze",
+      "title": "提交本地 AI 识别",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Item Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_ids"
+        ],
+        "title": "AnalyzeInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /ai/characters/image/settings",
+      "method": "GET",
+      "path": "/ai/characters/image/settings",
+      "title": "查看图搜设置",
+      "group": "ai",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /ai/characters/image/settings",
+      "method": "PUT",
+      "path": "/ai/characters/image/settings",
+      "title": "修改图搜设置",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "maxLength": 256,
+            "format": "password",
+            "writeOnly": true,
+            "title": "Api Key",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "ImageSearchSettings"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/characters/image-search",
+      "method": "POST",
+      "path": "/ai/characters/image-search",
+      "title": "以图搜索人物",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "nullable": true
+          },
+          "asset_id": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Asset Id",
+            "nullable": true
+          },
+          "consent": {
+            "type": "boolean",
+            "title": "Consent",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "Body_image_search_api_ai_characters_image_search_post"
+      },
+      "media_type": "multipart/form-data",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/characters/search",
+      "method": "POST",
+      "path": "/ai/characters/search",
+      "title": "联网搜索人物",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Query"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "character",
+              "work"
+            ],
+            "title": "Mode",
+            "default": "character"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 6
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /ai/characters/confirm",
+      "method": "POST",
+      "path": "/ai/characters/confirm",
+      "title": "确认人物标签",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Item Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 191,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_id",
+          "name"
+        ],
+        "title": "ConfirmInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /translation/status",
+      "method": "GET",
+      "path": "/translation/status",
+      "title": "汉化运行状态",
+      "group": "ai",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /translation/settings",
+      "method": "GET",
+      "path": "/translation/settings",
+      "title": "查看汉化模型",
+      "group": "ai",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /translation/settings",
+      "method": "PUT",
+      "path": "/translation/settings",
+      "title": "修改汉化模型",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "ollama",
+              "openai",
+              "controller"
+            ],
+            "title": "Provider"
+          },
+          "controller_node_id": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Controller Node Id",
+            "nullable": true
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Base Url"
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 191,
+            "title": "Model",
+            "default": ""
+          },
+          "api_key": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "password",
+            "writeOnly": true,
+            "title": "Api Key",
+            "nullable": true
+          },
+          "use_proxy": {
+            "type": "boolean",
+            "title": "Use Proxy",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled",
+          "provider",
+          "base_url"
+        ],
+        "title": "SettingsInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /translation/test",
+      "method": "POST",
+      "path": "/translation/test",
+      "title": "测试汉化模型",
+      "group": "ai",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /translation/batch",
+      "method": "POST",
+      "path": "/translation/batch",
+      "title": "批量汉化标题与标签",
+      "group": "ai",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "consent": {
+            "type": "boolean",
+            "const": true,
+            "title": "Consent"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "consent"
+        ],
+        "title": "BatchInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "GET /items",
+      "method": "GET",
+      "path": "/items",
+      "title": "管理书库作品",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "q",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 512,
+            "default": "",
+            "title": "Q"
+          }
+        },
+        {
+          "name": "type",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "",
+            "title": "Type"
+          }
+        },
+        {
+          "name": "source",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "",
+            "title": "Source",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono",
+              "local"
+            ]
+          }
+        },
+        {
+          "name": "tag",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "",
+            "title": "Tag"
+          }
+        },
+        {
+          "name": "tag_ids",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 739,
+            "description": "逗号分隔的标签 ID，最多 20 个",
+            "default": "",
+            "title": "Tag Ids"
+          }
+        },
+        {
+          "name": "tag_mode",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^(all|any)$",
+            "default": "all",
+            "title": "Tag Mode"
+          }
+        },
+        {
+          "name": "author",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 512,
+            "default": "",
+            "title": "Author"
+          }
+        },
+        {
+          "name": "rating",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "",
+            "title": "Rating"
+          }
+        },
+        {
+          "name": "downloaded",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "Downloaded"
+          }
+        },
+        {
+          "name": "favorite",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "Favorite"
+          }
+        },
+        {
+          "name": "favorite_group",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 36,
+            "default": "",
+            "title": "Favorite Group"
+          }
+        },
+        {
+          "name": "history",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "History"
+          }
+        },
+        {
+          "name": "page",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "title": "Page"
+          }
+        },
+        {
+          "name": "page_size",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "default": 30,
+            "title": "Page Size"
+          }
+        },
+        {
+          "name": "sort",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "latest",
+            "title": "Sort"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /items/{item_id}",
+      "method": "GET",
+      "path": "/items/{item_id}",
+      "title": "查看作品详情",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "item_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Item Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PATCH /items/{item_id}",
+      "method": "PATCH",
+      "path": "/items/{item_id}",
+      "title": "编辑作品资料",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "item_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Item Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Title",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 50000,
+            "title": "Description",
+            "nullable": true
+          },
+          "author": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Author",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Language",
+            "nullable": true
+          },
+          "rating": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "general",
+              "sensitive",
+              "adult"
+            ],
+            "title": "Rating",
+            "nullable": true
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Tags",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "ItemPatch"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /items/{item_id}",
+      "method": "DELETE",
+      "path": "/items/{item_id}",
+      "title": "移除作品记录",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "item_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Item Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "POST /items/{item_id}/download",
+      "method": "POST",
+      "path": "/items/{item_id}/download",
+      "title": "下载作品正文",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "item_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Item Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "Value",
+        "nullable": true
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /items/{item_id}/cover-refresh",
+      "method": "POST",
+      "path": "/items/{item_id}/cover-refresh",
+      "title": "重新获取封面",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "item_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Item Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /items/{item_id}/translate",
+      "method": "POST",
+      "path": "/items/{item_id}/translate",
+      "title": "汉化单个作品",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "item_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Item Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "consent": {
+            "type": "boolean",
+            "const": true,
+            "title": "Consent"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "consent"
+        ],
+        "title": "TranslateInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /items/{item_id}/translation",
+      "method": "GET",
+      "path": "/items/{item_id}/translation",
+      "title": "作品汉化进度",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "item_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Item Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /items/{item_id}/export",
+      "method": "GET",
+      "path": "/items/{item_id}/export",
+      "title": "导出作品文件",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "item_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Item Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": true,
+      "confirmation": false
+    },
+    {
+      "id": "POST /imports/upload",
+      "method": "POST",
+      "path": "/imports/upload",
+      "title": "从手机上传作品",
+      "group": "library",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "manga"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "Body_upload_api_imports_upload_post"
+      },
+      "media_type": "multipart/form-data",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /imports/folder",
+      "method": "POST",
+      "path": "/imports/folder",
+      "title": "导入服务器目录",
+      "group": "library",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Title",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "manga",
+              "illustration",
+              "novel",
+              "article"
+            ],
+            "title": "Type",
+            "default": "manga"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "FolderImport"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /tags",
+      "method": "GET",
+      "path": "/tags",
+      "title": "标签列表",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "q",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 191,
+            "default": "",
+            "title": "Q"
+          }
+        },
+        {
+          "name": "source",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "",
+            "title": "Source",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono",
+              "local"
+            ]
+          }
+        },
+        {
+          "name": "limit",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 1000,
+            "minimum": 1,
+            "title": "Limit",
+            "nullable": true
+          }
+        },
+        {
+          "name": "offset",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "title": "Offset"
+          }
+        },
+        {
+          "name": "suggest",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "Suggest"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /library/collections",
+      "method": "GET",
+      "path": "/library/collections",
+      "title": "平台书库统计",
+      "group": "library",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /series/import",
+      "method": "POST",
+      "path": "/series/import",
+      "title": "导入 Pixiv 官方系列",
+      "group": "library",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "const": "pixiv",
+            "title": "Platform",
+            "default": "pixiv"
+          },
+          "url_or_id": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url Or Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "novel",
+              "manga"
+            ],
+            "title": "Kind",
+            "nullable": true
+          },
+          "account_id": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Account Id",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "url_or_id"
+        ],
+        "title": "SeriesImportInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /series",
+      "method": "POST",
+      "path": "/series",
+      "title": "创建手动系列",
+      "group": "library",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "novel",
+              "manga"
+            ],
+            "title": "Kind"
+          },
+          "entries": {
+            "items": {
+              "properties": {
+                "item_id": {
+                  "type": "string",
+                  "maxLength": 36,
+                  "minLength": 1,
+                  "title": "Item Id"
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "title": "Label",
+                  "default": ""
+                }
+              },
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "item_id"
+              ],
+              "title": "EntryInput"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Entries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "kind",
+          "entries"
+        ],
+        "title": "ManualSeriesInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /series/{series_id}",
+      "method": "GET",
+      "path": "/series/{series_id}",
+      "title": "查看系列",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "series_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Series Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /series/{series_id}",
+      "method": "PUT",
+      "path": "/series/{series_id}",
+      "title": "编辑系列与上下集",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "series_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Series Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Revision"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "entries": {
+            "items": {
+              "properties": {
+                "item_id": {
+                  "type": "string",
+                  "maxLength": 36,
+                  "minLength": 1,
+                  "title": "Item Id"
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "title": "Label",
+                  "default": ""
+                }
+              },
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "item_id"
+              ],
+              "title": "EntryInput"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Entries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision",
+          "title",
+          "entries"
+        ],
+        "title": "ManualSeriesUpdate"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /devices",
+      "method": "GET",
+      "path": "/devices",
+      "title": "已绑定设备",
+      "group": "devices",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /devices/{device_id}",
+      "method": "DELETE",
+      "path": "/devices/{device_id}",
+      "title": "撤销设备授权",
+      "group": "devices",
+      "parameters": [
+        {
+          "name": "device_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Device Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "POST /devices/pairing",
+      "method": "POST",
+      "path": "/devices/pairing",
+      "title": "生成手机绑定码",
+      "group": "devices",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "server_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Server Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "server_url"
+        ],
+        "title": "PairingInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /database/export",
+      "method": "POST",
+      "path": "/database/export",
+      "title": "导出 MySQL 数据库",
+      "group": "devices",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": true,
+      "confirmation": false
+    },
+    {
+      "id": "GET /app-updates/android",
+      "method": "GET",
+      "path": "/app-updates/android",
+      "title": "查看 Android 更新",
+      "group": "devices",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "POST /app-updates/android",
+      "method": "POST",
+      "path": "/app-updates/android",
+      "title": "发布 Android 安装包",
+      "group": "devices",
+      "parameters": [
+        {
+          "name": "notes",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 2000,
+            "default": "",
+            "title": "Notes"
+          }
+        }
+      ],
+      "body": {
+        "type": "string",
+        "format": "binary"
+      },
+      "media_type": "application/vnd.android.package-archive",
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "GET /favorite-groups",
+      "method": "GET",
+      "path": "/favorite-groups",
+      "title": "查看收藏分组",
+      "group": "library",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /favorite-groups",
+      "method": "POST",
+      "path": "/favorite-groups",
+      "title": "创建收藏分组",
+      "group": "library",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "GroupInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /favorite-groups/{group_id}",
+      "method": "PUT",
+      "path": "/favorite-groups/{group_id}",
+      "title": "修改收藏分组",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "group_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Group Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "GroupInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "DELETE /favorite-groups/{group_id}",
+      "method": "DELETE",
+      "path": "/favorite-groups/{group_id}",
+      "title": "删除收藏分组",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "group_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Group Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "DELETE /history",
+      "method": "DELETE",
+      "path": "/history",
+      "title": "清空浏览历史",
+      "group": "library",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": true
+    },
+    {
+      "id": "GET /characters",
+      "method": "GET",
+      "path": "/characters",
+      "title": "人物作品墙",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "q",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 200,
+            "default": "",
+            "title": "Q"
+          }
+        },
+        {
+          "name": "source",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "",
+            "title": "Source",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono",
+              "local"
+            ]
+          }
+        },
+        {
+          "name": "downloaded",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "Downloaded"
+          }
+        },
+        {
+          "name": "page",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "title": "Page"
+          }
+        },
+        {
+          "name": "page_size",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 60,
+            "minimum": 1,
+            "default": 24,
+            "title": "Page Size"
+          }
+        },
+        {
+          "name": "sort",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "enum": [
+              "count",
+              "name"
+            ],
+            "type": "string",
+            "default": "count",
+            "title": "Sort"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /characters/{tag_id}",
+      "method": "GET",
+      "path": "/characters/{tag_id}",
+      "title": "人物资料",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "tag_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Tag Id"
+          }
+        },
+        {
+          "name": "source",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "",
+            "title": "Source",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono",
+              "local"
+            ]
+          }
+        },
+        {
+          "name": "downloaded",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "Downloaded"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /characters",
+      "method": "POST",
+      "path": "/characters",
+      "title": "创建人物资料",
+      "group": "library",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Candidate Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate_id"
+        ],
+        "title": "ProfileInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /characters/search",
+      "method": "POST",
+      "path": "/characters/search",
+      "title": "搜索人物资料",
+      "group": "library",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Query"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "character",
+              "work"
+            ],
+            "title": "Mode",
+            "default": "character"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 6
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /characters/{tag_id}/profile",
+      "method": "POST",
+      "path": "/characters/{tag_id}/profile",
+      "title": "更新人物介绍",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "tag_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Tag Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Candidate Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate_id"
+        ],
+        "title": "ProfileInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /pixiv/authors",
+      "method": "GET",
+      "path": "/pixiv/authors",
+      "title": "作者列表",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "q",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 200,
+            "default": "",
+            "title": "Q"
+          }
+        },
+        {
+          "name": "page",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "title": "Page"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /pixiv/authors/open",
+      "method": "POST",
+      "path": "/pixiv/authors/open",
+      "title": "读取作者主页",
+      "group": "library",
+      "parameters": [],
+      "body": {
+        "properties": {
+          "url_or_id": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url Or Id"
+          },
+          "account_id": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Account Id",
+            "nullable": true
+          },
+          "prefer_cached": {
+            "type": "boolean",
+            "title": "Prefer Cached",
+            "default": false
+          },
+          "section": {
+            "type": "string",
+            "enum": [
+              "works",
+              "bookmarks"
+            ],
+            "title": "Section",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "illustration",
+              "manga",
+              "novel"
+            ],
+            "title": "Category",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "url_or_id"
+        ],
+        "title": "OpenInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /pixiv/authors/{author_id}",
+      "method": "GET",
+      "path": "/pixiv/authors/{author_id}",
+      "title": "作者资料",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "author_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Author Id"
+          }
+        },
+        {
+          "name": "account_id",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "title": "Account Id",
+            "nullable": true
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /pixiv/authors/{author_id}/feed",
+      "method": "GET",
+      "path": "/pixiv/authors/{author_id}/feed",
+      "title": "作者作品与收藏",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "author_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Author Id"
+          }
+        },
+        {
+          "name": "section",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "enum": [
+              "works",
+              "bookmarks"
+            ],
+            "type": "string",
+            "default": "works",
+            "title": "Section"
+          }
+        },
+        {
+          "name": "category",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "enum": [
+              "illustration",
+              "manga",
+              "novel"
+            ],
+            "type": "string",
+            "default": "illustration",
+            "title": "Category"
+          }
+        },
+        {
+          "name": "restrict",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string",
+            "default": "public",
+            "title": "Restrict"
+          }
+        },
+        {
+          "name": "account_id",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "title": "Account Id",
+            "nullable": true
+          }
+        },
+        {
+          "name": "page",
+          "location": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "title": "Page"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "POST /pixiv/authors/{author_id}/feed",
+      "method": "POST",
+      "path": "/pixiv/authors/{author_id}/feed",
+      "title": "获取作者目录",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "author_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Author Id"
+          }
+        }
+      ],
+      "body": {
+        "properties": {
+          "section": {
+            "type": "string",
+            "enum": [
+              "works",
+              "bookmarks"
+            ],
+            "title": "Section",
+            "default": "works"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "illustration",
+              "manga",
+              "novel"
+            ],
+            "title": "Category",
+            "default": "illustration"
+          },
+          "restrict": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "title": "Restrict",
+            "default": "public"
+          },
+          "account_id": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Account Id",
+            "nullable": true
+          },
+          "more": {
+            "type": "boolean",
+            "title": "More",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "FeedInput"
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /pixiv/tasks/{job_id}",
+      "method": "GET",
+      "path": "/pixiv/tasks/{job_id}",
+      "title": "作者采集进度",
+      "group": "library",
+      "parameters": [
+        {
+          "name": "job_id",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    }
+  ]
+}

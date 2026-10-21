@@ -1,0 +1,2622 @@
+[
+  {
+    "path": "/api/dashboard",
+    "body": {
+      "total_items": 4,
+      "total_pages": 5,
+      "total_bytes": 342,
+      "pending_jobs": 2,
+      "untagged_items": 1,
+      "recent_items": [
+        {
+          "id": "item-4",
+          "title": "Missing",
+          "type": "article",
+          "source": "kemono",
+          "source_url": null,
+          "description": "",
+          "author": "Creator",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [],
+          "page_count": 1,
+          "size_bytes": 15,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:08Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "failed",
+          "content_error": "正文文件缺失，请检查 NAS 或恢复备份",
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "Missing",
+          "author_source_id": null,
+          "source_id": null,
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-2",
+          "title": "100%_测试",
+          "type": "illustration",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "摘要",
+          "author": "作者乙",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-c",
+              "name": "100%_literal",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "100%_literal"
+            }
+          ],
+          "page_count": 8,
+          "size_bytes": 0,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:06Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "metadata",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 8,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "100%_测试",
+          "author_source_id": null,
+          "source_id": "124",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "source_counts": {
+        "kemono": 1,
+        "pixiv": 3
+      },
+      "rating_counts": {
+        "unknown": 4
+      }
+    }
+  },
+  {
+    "path": "/api/items",
+    "body": {
+      "items": [
+        {
+          "id": "item-4",
+          "title": "Missing",
+          "type": "article",
+          "source": "kemono",
+          "source_url": null,
+          "description": "",
+          "author": "Creator",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [],
+          "page_count": 1,
+          "size_bytes": 15,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:08Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "failed",
+          "content_error": "正文文件缺失，请检查 NAS 或恢复备份",
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "Missing",
+          "author_source_id": null,
+          "source_id": null,
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-2",
+          "title": "100%_测试",
+          "type": "illustration",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "摘要",
+          "author": "作者乙",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-c",
+              "name": "100%_literal",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "100%_literal"
+            }
+          ],
+          "page_count": 8,
+          "size_bytes": 0,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:06Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "metadata",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 8,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "100%_测试",
+          "author_source_id": null,
+          "source_id": "124",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 4,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?page_size=2&page=2",
+    "body": {
+      "items": [
+        {
+          "id": "item-2",
+          "title": "100%_测试",
+          "type": "illustration",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "摘要",
+          "author": "作者乙",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-c",
+              "name": "100%_literal",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "100%_literal"
+            }
+          ],
+          "page_count": 8,
+          "size_bytes": 0,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:06Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "metadata",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 8,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "100%_测试",
+          "author_source_id": null,
+          "source_id": "124",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 4,
+      "page": 2,
+      "page_size": 2
+    }
+  },
+  {
+    "path": "/api/items?sort=title",
+    "body": {
+      "items": [
+        {
+          "id": "item-2",
+          "title": "100%_测试",
+          "type": "illustration",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "摘要",
+          "author": "作者乙",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-c",
+              "name": "100%_literal",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "100%_literal"
+            }
+          ],
+          "page_count": 8,
+          "size_bytes": 0,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:06Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "metadata",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 8,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "100%_测试",
+          "author_source_id": null,
+          "source_id": "124",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-4",
+          "title": "Missing",
+          "type": "article",
+          "source": "kemono",
+          "source_url": null,
+          "description": "",
+          "author": "Creator",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [],
+          "page_count": 1,
+          "size_bytes": 15,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:08Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "failed",
+          "content_error": "正文文件缺失，请检查 NAS 或恢复备份",
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "Missing",
+          "author_source_id": null,
+          "source_id": null,
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        },
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        }
+      ],
+      "total": 4,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?sort=oldest",
+    "body": {
+      "items": [
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        },
+        {
+          "id": "item-2",
+          "title": "100%_测试",
+          "type": "illustration",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "摘要",
+          "author": "作者乙",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-c",
+              "name": "100%_literal",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "100%_literal"
+            }
+          ],
+          "page_count": 8,
+          "size_bytes": 0,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:06Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "metadata",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 8,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "100%_测试",
+          "author_source_id": null,
+          "source_id": "124",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-4",
+          "title": "Missing",
+          "type": "article",
+          "source": "kemono",
+          "source_url": null,
+          "description": "",
+          "author": "Creator",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [],
+          "page_count": 1,
+          "size_bytes": 15,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:08Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "failed",
+          "content_error": "正文文件缺失，请检查 NAS 或恢复备份",
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "Missing",
+          "author_source_id": null,
+          "source_id": null,
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        }
+      ],
+      "total": 4,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?q=中文",
+    "body": {
+      "items": [
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?q=100%25_",
+    "body": {
+      "items": [
+        {
+          "id": "item-2",
+          "title": "100%_测试",
+          "type": "illustration",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "摘要",
+          "author": "作者乙",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-c",
+              "name": "100%_literal",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "100%_literal"
+            }
+          ],
+          "page_count": 8,
+          "size_bytes": 0,
+          "cover_url": null,
+          "created_at": "2025-01-02T03:04:06Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "metadata",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 8,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "100%_测试",
+          "author_source_id": null,
+          "source_id": "124",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?author=作者甲",
+    "body": {
+      "items": [
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?source=pixiv&type=novel",
+    "body": {
+      "items": [
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?tag_ids=tag-a,tag-b",
+    "body": {
+      "items": [
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?tag_ids=tag-a,tag-b&tag_mode=any",
+    "body": {
+      "items": [
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?tag_ids=tag-a,tag-a",
+    "body": {
+      "items": [
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?tag=标签甲",
+    "body": {
+      "items": [],
+      "total": 0,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?tag=alpha",
+    "body": {
+      "items": [
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?tag_ids=not-found",
+    "body": {
+      "items": [],
+      "total": 0,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?downloaded=true",
+    "body": {
+      "items": [
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        },
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?favorite=true",
+    "body": {
+      "items": [
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?favorite_group=group-1",
+    "body": {
+      "items": [
+        {
+          "id": "item-1",
+          "title": "原题",
+          "type": "manga",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "manual",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            },
+            {
+              "id": "tag-b",
+              "name": "beta",
+              "origin": "source",
+              "score": null,
+              "name_zh": null,
+              "display_name": "beta"
+            }
+          ],
+          "page_count": 2,
+          "size_bytes": 156,
+          "cover_url": "/api/assets/asset-1/thumbnail",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": null,
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": 2,
+          "source_series": null,
+          "title_zh": "中文标题",
+          "display_title": "中文标题",
+          "author_source_id": "77",
+          "source_id": "123",
+          "source_published_at": "2025-01-02T03:04:05Z",
+          "is_favorite": true,
+          "user_score": 0,
+          "favorite_group_ids": [
+            "group-1"
+          ],
+          "source_bookmark_count": 120
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?favorite_group=ungrouped",
+    "body": {
+      "items": [],
+      "total": 0,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items?history=true",
+    "body": {
+      "items": [
+        {
+          "id": "item-3",
+          "title": "小说",
+          "type": "novel",
+          "source": "pixiv",
+          "source_url": null,
+          "description": "",
+          "author": "作者甲",
+          "language": "",
+          "rating": "unknown",
+          "rating_origin": "source",
+          "tags": [
+            {
+              "id": "tag-a",
+              "name": "alpha",
+              "origin": "source",
+              "score": null,
+              "name_zh": "标签甲",
+              "display_name": "标签甲"
+            }
+          ],
+          "page_count": 1,
+          "size_bytes": 171,
+          "cover_url": "/api/assets/asset-4/thumbnail",
+          "created_at": "2025-01-02T03:04:07Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "progress": {
+            "page": 0,
+            "section": 1,
+            "offset": 0.4
+          },
+          "content_state": "ready",
+          "content_error": null,
+          "content_job_id": null,
+          "remote_page_count": null,
+          "source_series": null,
+          "title_zh": null,
+          "display_title": "小说",
+          "author_source_id": "77",
+          "source_id": "novel:9",
+          "source_published_at": null,
+          "is_favorite": false,
+          "user_score": 0,
+          "favorite_group_ids": [],
+          "source_bookmark_count": null
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "page_size": 30
+    }
+  },
+  {
+    "path": "/api/items/item-1",
+    "body": {
+      "id": "item-1",
+      "title": "原题",
+      "type": "manga",
+      "source": "pixiv",
+      "source_url": null,
+      "description": "",
+      "author": "作者甲",
+      "language": "",
+      "rating": "unknown",
+      "rating_origin": "source",
+      "tags": [
+        {
+          "id": "tag-a",
+          "name": "alpha",
+          "origin": "manual",
+          "score": null,
+          "name_zh": "标签甲",
+          "display_name": "标签甲"
+        },
+        {
+          "id": "tag-a",
+          "name": "alpha",
+          "origin": "source",
+          "score": null,
+          "name_zh": "标签甲",
+          "display_name": "标签甲"
+        },
+        {
+          "id": "tag-b",
+          "name": "beta",
+          "origin": "source",
+          "score": null,
+          "name_zh": null,
+          "display_name": "beta"
+        }
+      ],
+      "page_count": 2,
+      "size_bytes": 156,
+      "cover_url": "/api/assets/asset-1/thumbnail",
+      "created_at": "2025-01-02T03:04:05Z",
+      "updated_at": "2025-01-02T03:04:05Z",
+      "progress": null,
+      "content_state": "ready",
+      "content_error": null,
+      "content_job_id": null,
+      "remote_page_count": 2,
+      "source_series": null,
+      "title_zh": "中文标题",
+      "display_title": "中文标题",
+      "author_source_id": "77",
+      "source_id": "123",
+      "source_published_at": "2025-01-02T03:04:05Z",
+      "is_favorite": true,
+      "user_score": 0,
+      "favorite_group_ids": [
+        "group-1"
+      ],
+      "source_bookmark_count": 120,
+      "assets": [
+        {
+          "id": "asset-1",
+          "position": 0,
+          "original_name": "page.png",
+          "mime_type": "image/png",
+          "size_bytes": 78,
+          "status": "available",
+          "inline_key": null,
+          "width": 1,
+          "height": 1,
+          "url": "/api/assets/asset-1/content"
+        },
+        {
+          "id": "asset-2",
+          "position": 1,
+          "original_name": "page.png",
+          "mime_type": "image/png",
+          "size_bytes": 78,
+          "status": "available",
+          "inline_key": null,
+          "width": 1,
+          "height": 1,
+          "url": "/api/assets/asset-2/content"
+        }
+      ],
+      "inline_assets": [],
+      "series": [
+        {
+          "id": "series-1",
+          "title": "上下集",
+          "origin": "manual",
+          "source": "local",
+          "source_id": null,
+          "kind": "manga",
+          "complete": true,
+          "revision": 1
+        }
+      ]
+    }
+  },
+  {
+    "path": "/api/items/item-2",
+    "body": {
+      "id": "item-2",
+      "title": "100%_测试",
+      "type": "illustration",
+      "source": "pixiv",
+      "source_url": null,
+      "description": "摘要",
+      "author": "作者乙",
+      "language": "",
+      "rating": "unknown",
+      "rating_origin": "source",
+      "tags": [
+        {
+          "id": "tag-c",
+          "name": "100%_literal",
+          "origin": "source",
+          "score": null,
+          "name_zh": null,
+          "display_name": "100%_literal"
+        }
+      ],
+      "page_count": 8,
+      "size_bytes": 0,
+      "cover_url": null,
+      "created_at": "2025-01-02T03:04:06Z",
+      "updated_at": "2025-01-02T03:04:05Z",
+      "progress": null,
+      "content_state": "metadata",
+      "content_error": null,
+      "content_job_id": null,
+      "remote_page_count": 8,
+      "source_series": null,
+      "title_zh": null,
+      "display_title": "100%_测试",
+      "author_source_id": null,
+      "source_id": "124",
+      "source_published_at": null,
+      "is_favorite": false,
+      "user_score": 0,
+      "favorite_group_ids": [],
+      "source_bookmark_count": null,
+      "assets": [],
+      "inline_assets": [],
+      "series": []
+    }
+  },
+  {
+    "path": "/api/items/item-3",
+    "body": {
+      "id": "item-3",
+      "title": "小说",
+      "type": "novel",
+      "source": "pixiv",
+      "source_url": null,
+      "description": "",
+      "author": "作者甲",
+      "language": "",
+      "rating": "unknown",
+      "rating_origin": "source",
+      "tags": [
+        {
+          "id": "tag-a",
+          "name": "alpha",
+          "origin": "source",
+          "score": null,
+          "name_zh": "标签甲",
+          "display_name": "标签甲"
+        }
+      ],
+      "page_count": 1,
+      "size_bytes": 171,
+      "cover_url": "/api/assets/asset-4/thumbnail",
+      "created_at": "2025-01-02T03:04:07Z",
+      "updated_at": "2025-01-02T03:04:05Z",
+      "progress": {
+        "page": 0,
+        "section": 1,
+        "offset": 0.4
+      },
+      "content_state": "ready",
+      "content_error": null,
+      "content_job_id": null,
+      "remote_page_count": null,
+      "source_series": null,
+      "title_zh": null,
+      "display_title": "小说",
+      "author_source_id": "77",
+      "source_id": "novel:9",
+      "source_published_at": null,
+      "is_favorite": false,
+      "user_score": 0,
+      "favorite_group_ids": [],
+      "source_bookmark_count": null,
+      "assets": [
+        {
+          "id": "asset-3",
+          "position": 0,
+          "original_name": "novel.txt",
+          "mime_type": "text/plain",
+          "size_bytes": 93,
+          "status": "available",
+          "inline_key": null,
+          "width": null,
+          "height": null,
+          "url": "/api/assets/asset-3/content"
+        }
+      ],
+      "inline_assets": [
+        {
+          "id": "asset-4",
+          "position": 1,
+          "original_name": "page.png",
+          "mime_type": "image/png",
+          "size_bytes": 78,
+          "status": "available",
+          "inline_key": "uploadedimage:1",
+          "width": 1,
+          "height": 1,
+          "url": "/api/assets/asset-4/content"
+        }
+      ],
+      "series": [
+        {
+          "id": "series-1",
+          "title": "上下集",
+          "origin": "manual",
+          "source": "local",
+          "source_id": null,
+          "kind": "manga",
+          "complete": true,
+          "revision": 1
+        },
+        {
+          "id": "series-2",
+          "title": "官方小说",
+          "origin": "source",
+          "source": "pixiv",
+          "source_id": "99",
+          "kind": "novel",
+          "complete": false,
+          "revision": 2
+        }
+      ]
+    }
+  },
+  {
+    "path": "/api/items/item-4",
+    "body": {
+      "id": "item-4",
+      "title": "Missing",
+      "type": "article",
+      "source": "kemono",
+      "source_url": null,
+      "description": "",
+      "author": "Creator",
+      "language": "",
+      "rating": "unknown",
+      "rating_origin": "source",
+      "tags": [],
+      "page_count": 1,
+      "size_bytes": 15,
+      "cover_url": null,
+      "created_at": "2025-01-02T03:04:08Z",
+      "updated_at": "2025-01-02T03:04:05Z",
+      "progress": null,
+      "content_state": "failed",
+      "content_error": "正文文件缺失，请检查 NAS 或恢复备份",
+      "content_job_id": null,
+      "remote_page_count": null,
+      "source_series": null,
+      "title_zh": null,
+      "display_title": "Missing",
+      "author_source_id": null,
+      "source_id": null,
+      "source_published_at": null,
+      "is_favorite": false,
+      "user_score": 0,
+      "favorite_group_ids": [],
+      "source_bookmark_count": null,
+      "assets": [
+        {
+          "id": "asset-5",
+          "position": 0,
+          "original_name": "video.mp4",
+          "mime_type": "video/mp4",
+          "size_bytes": 15,
+          "status": "missing",
+          "inline_key": null,
+          "width": null,
+          "height": null,
+          "url": "/api/assets/asset-5/content"
+        }
+      ],
+      "inline_assets": [],
+      "series": []
+    }
+  },
+  {
+    "path": "/api/tags",
+    "body": [
+      {
+        "id": "tag-c",
+        "name": "100%_literal",
+        "name_zh": null,
+        "display_name": "100%_literal",
+        "count": 1
+      },
+      {
+        "id": "tag-a",
+        "name": "alpha",
+        "name_zh": "标签甲",
+        "display_name": "标签甲",
+        "count": 2
+      },
+      {
+        "id": "tag-b",
+        "name": "beta",
+        "name_zh": null,
+        "display_name": "beta",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "/api/tags?limit=2&offset=1",
+    "body": [
+      {
+        "id": "tag-a",
+        "name": "alpha",
+        "name_zh": "标签甲",
+        "display_name": "标签甲",
+        "count": 2
+      },
+      {
+        "id": "tag-b",
+        "name": "beta",
+        "name_zh": null,
+        "display_name": "beta",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "/api/tags?suggest=true&q=标签",
+    "body": [
+      {
+        "id": "tag-a",
+        "name": "alpha",
+        "name_zh": "标签甲",
+        "display_name": "标签甲",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "path": "/api/tags?q=%25_",
+    "body": [
+      {
+        "id": "tag-c",
+        "name": "100%_literal",
+        "name_zh": null,
+        "display_name": "100%_literal",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "/api/tags?source=pixiv",
+    "body": [
+      {
+        "id": "tag-c",
+        "name": "100%_literal",
+        "name_zh": null,
+        "display_name": "100%_literal",
+        "count": 1
+      },
+      {
+        "id": "tag-a",
+        "name": "alpha",
+        "name_zh": "标签甲",
+        "display_name": "标签甲",
+        "count": 2
+      },
+      {
+        "id": "tag-b",
+        "name": "beta",
+        "name_zh": null,
+        "display_name": "beta",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "/api/favorite-groups",
+    "body": {
+      "items": [
+        {
+          "id": "group-1",
+          "name": "想看",
+          "count": 1
+        },
+        {
+          "id": "group-2",
+          "name": "已看",
+          "count": 0
+        }
+      ],
+      "total_favorites": 1,
+      "ungrouped_count": 0
+    }
+  },
+  {
+    "path": "/api/library/collections",
+    "body": [
+      {
+        "source": "pixiv",
+        "name": "Pixiv",
+        "storage_directory": "collections/pixiv",
+        "item_count": 3,
+        "saved_item_count": 2,
+        "metadata_item_count": 1,
+        "page_count": 4,
+        "size_bytes": 327,
+        "legacy_asset_count": 4
+      },
+      {
+        "source": "ehentai",
+        "name": "E-Hentai",
+        "storage_directory": "collections/ehentai",
+        "item_count": 0,
+        "saved_item_count": 0,
+        "metadata_item_count": 0,
+        "page_count": 0,
+        "size_bytes": 0,
+        "legacy_asset_count": 0
+      },
+      {
+        "source": "picacg",
+        "name": "哔咔 PicACG",
+        "storage_directory": "collections/picacg",
+        "item_count": 0,
+        "saved_item_count": 0,
+        "metadata_item_count": 0,
+        "page_count": 0,
+        "size_bytes": 0,
+        "legacy_asset_count": 0
+      },
+      {
+        "source": "jm",
+        "name": "JM 天堂",
+        "storage_directory": "collections/jm",
+        "item_count": 0,
+        "saved_item_count": 0,
+        "metadata_item_count": 0,
+        "page_count": 0,
+        "size_bytes": 0,
+        "legacy_asset_count": 0
+      },
+      {
+        "source": "kemono",
+        "name": "Kemono",
+        "storage_directory": "collections/kemono",
+        "item_count": 1,
+        "saved_item_count": 1,
+        "metadata_item_count": 0,
+        "page_count": 1,
+        "size_bytes": 15,
+        "legacy_asset_count": 1
+      },
+      {
+        "source": "local",
+        "name": "本地书库",
+        "storage_directory": "collections/local",
+        "item_count": 0,
+        "saved_item_count": 0,
+        "metadata_item_count": 0,
+        "page_count": 0,
+        "size_bytes": 0,
+        "legacy_asset_count": 0
+      }
+    ]
+  },
+  {
+    "path": "/api/assets/asset-3/text-sections",
+    "body": {
+      "sections": [
+        {
+          "index": 0,
+          "title": "第一章",
+          "text": "甲\n\n乙[uploadedimage:1]",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "甲\n\n乙"
+            },
+            {
+              "type": "image",
+              "key": "uploadedimage:1",
+              "asset_id": "asset-4",
+              "url": "/api/assets/asset-4/content",
+              "width": 1,
+              "height": 1
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "title": "第二章",
+          "text": "丙[pixivimage:123-2]",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "丙"
+            },
+            {
+              "type": "image",
+              "key": "pixivimage:123-2",
+              "unavailable": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "path": "/api/series/series-1",
+    "body": {
+      "id": "series-1",
+      "title": "上下集",
+      "origin": "manual",
+      "source": "local",
+      "source_id": null,
+      "kind": "manga",
+      "complete": true,
+      "revision": 1,
+      "entries": [
+        {
+          "item_id": "item-1",
+          "title": "原题",
+          "position": 0,
+          "label": "上",
+          "content_state": "ready",
+          "page_count": 2
+        },
+        {
+          "item_id": "item-3",
+          "title": "小说",
+          "position": 1,
+          "label": "下",
+          "content_state": "ready",
+          "page_count": 1
+        }
+      ]
+    }
+  },
+  {
+    "path": "/api/series/series-2",
+    "body": {
+      "id": "series-2",
+      "title": "官方小说",
+      "origin": "source",
+      "source": "pixiv",
+      "source_id": "99",
+      "kind": "novel",
+      "complete": false,
+      "revision": 2,
+      "entries": [
+        {
+          "item_id": "item-3",
+          "title": "小说",
+          "position": 0,
+          "label": "",
+          "content_state": "ready",
+          "page_count": 1
+        }
+      ]
+    }
+  },
+  {
+    "path": "/api/queue/settings",
+    "body": {
+      "paused": false,
+      "rate_limit_enabled": true,
+      "min_interval_seconds": 2.0,
+      "max_interval_seconds": 5.0,
+      "concurrency": 2
+    }
+  },
+  {
+    "path": "/api/jobs",
+    "body": {
+      "items": [
+        {
+          "id": "job-1",
+          "kind": "import",
+          "queue": "details",
+          "original_queue": "details",
+          "status": "queued",
+          "progress": 0.0,
+          "error": null,
+          "retry_last_error": null,
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "result": null,
+          "item_id": "item-1",
+          "label": null
+        },
+        {
+          "id": "job-2",
+          "kind": "import_content",
+          "queue": "manual_download",
+          "original_queue": "manual_download",
+          "status": "running",
+          "progress": 0.0,
+          "error": null,
+          "retry_last_error": null,
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "result": null,
+          "item_id": null,
+          "label": null
+        },
+        {
+          "id": "job-3",
+          "kind": "import",
+          "queue": "retry",
+          "original_queue": "download",
+          "status": "failed",
+          "progress": 0.0,
+          "error": "synthetic failure",
+          "retry_last_error": "synthetic failure",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "result": null,
+          "item_id": null,
+          "label": "Pixiv 详情与正文下载"
+        }
+      ]
+    }
+  },
+  {
+    "path": "/api/jobs?queue=retry",
+    "body": {
+      "items": [
+        {
+          "id": "job-3",
+          "kind": "import",
+          "queue": "retry",
+          "original_queue": "download",
+          "status": "failed",
+          "progress": 0.0,
+          "error": "synthetic failure",
+          "retry_last_error": "synthetic failure",
+          "created_at": "2025-01-02T03:04:05Z",
+          "updated_at": "2025-01-02T03:04:05Z",
+          "result": null,
+          "item_id": null,
+          "label": "Pixiv 详情与正文下载"
+        }
+      ]
+    }
+  },
+  {
+    "path": "/api/jobs/job-2",
+    "body": {
+      "id": "job-2",
+      "kind": "import_content",
+      "queue": "manual_download",
+      "original_queue": "manual_download",
+      "status": "running",
+      "progress": 0.0,
+      "error": null,
+      "retry_last_error": null,
+      "created_at": "2025-01-02T03:04:05Z",
+      "updated_at": "2025-01-02T03:04:05Z",
+      "result": null,
+      "item_id": null,
+      "label": null
+    }
+  }
+]

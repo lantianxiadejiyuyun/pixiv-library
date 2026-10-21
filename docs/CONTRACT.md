@@ -1,5 +1,13 @@
 # Implementation contract
 
+Rust migration (2026-10-21): `server/rust/` implements all 152 legacy API routes,
+platform connectors and eight native worker processes. AI inference remains an
+independent service. `server/app/` is retained for compatibility fixtures and
+rollback; existing production deployments have not been replaced. See
+[`server/rust/README.md`](../server/rust/README.md) for configuration, validation
+and migration boundaries. Rust defaults to port 8801, read-only mode and disabled
+workers. It does not launch Python or forward business requests to the old API.
+
 This repository implements a self-hosted library. Production: MySQL and mounted local/SMB/NFS storage. SQLite is an explicit local development/test mode, not the production database. Image inference remains local. Explicit metadata translation may use administrator-configured Ollama or an OpenAI-compatible endpoint; only titles and tags are sent, with user consent. No hosted publication.
 
 ## Ownership
