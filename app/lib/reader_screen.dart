@@ -43,8 +43,8 @@ class _ReaderScreenState extends State<ReaderScreen>
   bool _flow = false, _preferredFlow = false, _modeTouched = false;
   bool _modeReady = false, _fontTouched = false;
   bool get _canFlow =>
-      _item.assets.isNotEmpty &&
-      _item.assets.every((asset) => asset.mimeType.startsWith('image/'));
+      _item.readingAssets.isNotEmpty &&
+      _item.readingAssets.every((asset) => asset.mimeType.startsWith('image/'));
   List<TextChapter> _chapters = [];
   int _page = 0, _chapter = 0, _loadVersion = 0;
   int _textRestoreRevision = 0;
@@ -61,25 +61,25 @@ class _ReaderScreenState extends State<ReaderScreen>
   _ProgressSave? _pending;
 
   bool get _text =>
-      _item.assets.isNotEmpty &&
-      _item.assets[_page].mimeType.startsWith('text/');
+      _item.readingAssets.isNotEmpty &&
+      _item.readingAssets[_page].mimeType.startsWith('text/');
   bool get _video =>
-      _item.assets.isNotEmpty &&
-      _item.assets[_page].mimeType.startsWith('video/');
+      _item.readingAssets.isNotEmpty &&
+      _item.readingAssets[_page].mimeType.startsWith('video/');
   ReadingPosition get _position => ReadingPosition(
     page: _page,
     section: _text ? _chapter : 0,
     offset: _text || _flow || _video ? _offset : 0,
   );
-  double get _percent => _item.assets.isEmpty
+  double get _percent => _item.readingAssets.isEmpty
       ? 0
       : _text
       ? (_page +
                 (_chapters.isEmpty
                     ? 0
                     : (_chapter + _offset) / _chapters.length)) /
-            _item.assets.length
-      : (_page + (_video ? _offset : 1)) / _item.assets.length;
+            _item.readingAssets.length
+      : (_page + (_video ? _offset : 1)) / _item.readingAssets.length;
 
   @override
   void initState() {
@@ -88,7 +88,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     _item = widget.item;
     _page = _bounded(
       widget.initialPage ?? _item.progress.page,
-      _item.assets.length,
+      _item.readingAssets.length,
     );
     _chapter = widget.initialPage == null ? _item.progress.section : 0;
     _offset = widget.initialPage == null ? _ratio(_item.progress.offset) : 0;
@@ -219,7 +219,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final version = ++_loadVersion;
     final itemId = _item.id;
     final page = _page;
-    final asset = _item.assets[_page];
+    final asset = _item.readingAssets[_page];
     setState(() {
       _loading = true;
       _error = null;
@@ -378,7 +378,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     int section = 0,
     double offset = 0,
   }) async {
-    if (_loading || page < 0 || page >= _item.assets.length) return;
+    if (_loading || page < 0 || page >= _item.readingAssets.length) return;
     final navigation = ++_assetNavigation;
     await _videoPlayback.pause();
     if (!mounted || navigation != _assetNavigation || _leaving) return;
@@ -435,7 +435,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   Future<void> _directory() async {
-    if (_loading || _item.assets.isEmpty) return;
+    if (_loading || _item.readingAssets.isEmpty) return;
     await _videoPlayback.pause();
     if (!mounted) return;
     final jump = await showModalBottomSheet<_ReaderJump>(
@@ -462,12 +462,12 @@ class _ReaderScreenState extends State<ReaderScreen>
                   Text(
                     _text
                         ? '${_chapters.length} 节'
-                        : '${_item.assets.length} P',
+                        : '${_item.readingAssets.length} P',
                   ),
                 ],
               ),
             ),
-            if (_text && _item.assets.length > 1)
+            if (_text && _item.readingAssets.length > 1)
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -481,13 +481,13 @@ class _ReaderScreenState extends State<ReaderScreen>
                     border: OutlineInputBorder(),
                   ),
                   items: [
-                    for (int i = 0; i < _item.assets.length; i++)
+                    for (int i = 0; i < _item.readingAssets.length; i++)
                       DropdownMenuItem(
                         value: i,
                         child: Text(
-                          _item.assets[i].name.isEmpty
+                          _item.readingAssets[i].name.isEmpty
                               ? '第 ${i + 1} 个文件'
-                              : _item.assets[i].name,
+                              : _item.readingAssets[i].name,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -502,7 +502,9 @@ class _ReaderScreenState extends State<ReaderScreen>
             Expanded(
               child: ListView.builder(
                 controller: scroll,
-                itemCount: _text ? _chapters.length : _item.assets.length,
+                itemCount: _text
+                    ? _chapters.length
+                    : _item.readingAssets.length,
                 itemBuilder: (_, index) => ListTile(
                   selected: _text ? index == _chapter : index == _page,
                   leading: Text('${index + 1}'),
@@ -676,7 +678,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _next() async {
     if (_text && _chapter < _chapters.length - 1) {
       await _changeChapter(_chapter + 1);
-    } else if (_page < _item.assets.length - 1) {
+    } else if (_page < _item.readingAssets.length - 1) {
       await _changeAsset(_page + 1);
     }
   }
@@ -689,7 +691,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         !_loading &&
         _chapters.isNotEmpty &&
         _chapter == _chapters.length - 1 &&
-        _page == _item.assets.length - 1;
+        _page == _item.readingAssets.length - 1;
     return PopScope(
       canPop: _allowPop,
       onPopInvokedWithResult: (didPop, result) {
@@ -792,6 +794,20 @@ class _ReaderScreenState extends State<ReaderScreen>
                                   child: NovelReaderBody(
                                     key: ValueKey((_item.id, _page)),
                                     text: _chapters[_chapter].text,
+                                    blocks: _chapters[_chapter].blocks,
+                                    imageBuilder: (image) =>
+                                        image.url != null &&
+                                            RegExp(
+                                              r'^/api/assets/[a-f0-9-]+/content$',
+                                            ).hasMatch(image.url!)
+                                        ? ApiImage(
+                                            api: widget.api,
+                                            path: image.url!,
+                                            fit: BoxFit.contain,
+                                          )
+                                        : const Center(
+                                            child: Text('插图暂不可用，请在服务器补全'),
+                                          ),
                                     title: _chapters[_chapter].title.isEmpty
                                         ? '第 ${_chapter + 1} 节'
                                         : _chapters[_chapter].title,
@@ -829,7 +845,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                             key: ValueKey(_item.id),
                             api: widget.api,
                             itemId: _item.id,
-                            assets: _item.assets,
+                            assets: _item.readingAssets,
                             initialPage: _page,
                             initialOffset: _offset,
                             controller: _flowController,
@@ -838,10 +854,10 @@ class _ReaderScreenState extends State<ReaderScreen>
                         : PageView.builder(
                             key: ValueKey(_item.id),
                             controller: _pages,
-                            itemCount: _item.assets.length,
+                            itemCount: _item.readingAssets.length,
                             onPageChanged: _imagePageChanged,
                             itemBuilder: (_, page) {
-                              final asset = _item.assets[page];
+                              final asset = _item.readingAssets[page];
                               if (asset.mimeType.startsWith('video/')) {
                                 final itemId = _item.id;
                                 return VideoAssetPlayer(
@@ -907,7 +923,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                                   child: Text(
                                     _text
                                         ? '第 ${_chapter + 1} / ${_chapters.length} 节'
-                                        : '第 ${_page + 1} / ${_item.assets.length} P',
+                                        : '第 ${_page + 1} / ${_item.readingAssets.length} P',
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
@@ -916,7 +932,9 @@ class _ReaderScreenState extends State<ReaderScreen>
                                 tooltip: _text ? '下一节' : '下一 P',
                                 onPressed:
                                     !_loading &&
-                                        (_page < _item.assets.length - 1 ||
+                                        (_page <
+                                                _item.readingAssets.length -
+                                                    1 ||
                                             (_text &&
                                                 _chapter <
                                                     _chapters.length - 1))

@@ -3,12 +3,13 @@ export type Rating = 'unknown' | 'general' | 'sensitive' | 'adult'
 export type ContentState = 'metadata' | 'queued' | 'downloading' | 'ready' | 'failed'
 export type ContentScope = 'images' | 'novels' | 'all'
 export interface ReadingProgress {page: number; section?: number; offset?: number}
-export interface TextSection {index: number; title: string; text: string}
+export interface NovelBlock {type:'text'|'image';text?:string;key?:string;url?:string;width?:number|null;height?:number|null;unavailable?:boolean}
+export interface TextSection {index: number; title: string; text: string; blocks?:NovelBlock[]}
 export interface SeriesSummary {id: string; title: string; origin: 'source' | 'manual'; source: string; source_id: string | null; kind: 'novel' | 'manga'; complete: boolean; revision: number}
 export interface SeriesEntry {item_id: string; title: string; position: number; label: string; content_state: ContentState; page_count: number}
 export interface SeriesDetail extends SeriesSummary {entries: SeriesEntry[]}
 export interface Tag { id: string; name: string; name_zh?: string | null; display_name?: string; origin?: string; score?: number; count?: number }
-export interface Asset { id: string; position: number; original_name: string; mime_type: string; size_bytes: number; url: string }
+export interface Asset { id: string; position: number; original_name: string; mime_type: string; size_bytes: number; url: string;inline_key?:string|null }
 export interface Item {
   id: string; title: string; type: ItemType; source: string; source_url?: string; description?: string;
   title_zh?: string | null; display_title?: string;

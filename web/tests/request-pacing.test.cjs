@@ -151,6 +151,19 @@ test('采集暂停提示只显示在被阻止的任务上，手动队列只遵�
   assert.match(h.state.pauseMessage({queue:'manual_download'}),/本队列已暂停/)
 })
 
+test('队列展示服务端原因与恢复方法，不把空队列和平台等待显示为暂停',async()=>{
+  const h=harness();await h.state.load()
+  const paused={id:'manual_download',label:'手动下载',paused:true,blocked_by_master:false,counts:{queued:7},diagnostic:{state:'paused',reasons:[{code:'lane_paused',source:'legacy',changed_at:null,message:'旧记录未保存操作来源和时间',action:'点击本队列「恢复」'}]}}
+  const waiting={id:'download',paused:false,blocked_by_master:false,diagnostic:{state:'waiting',reasons:[{code:'platform_backoff',message:'平台冷却',action:'冷却结束自动继续'}]}}
+  h.state.state.value.lanes=[paused,waiting]
+  assert.equal(h.state.pausedLanes.value.length,1);assert.equal(h.state.pausedWaiting.value,7)
+  assert.equal(h.state.statusLabel(paused),'已暂停');assert.equal(h.state.statusLabel(waiting),'等待条件恢复')
+  assert.match(h.state.pauseMessage({queue:'manual_download'}),/旧记录.*恢复/)
+  assert.match(h.state.pauseMessage({queue:'download'}),/平台冷却.*自动继续/)
+  assert.equal(h.state.statusLabel({paused:false,diagnostic:{state:'idle'}}),'空闲')
+  assert.equal(h.state.sourceLabel('maintenance'),'服务更新维护')
+})
+
 
 test('重试队列独立保存并发与暂停，采集暂停不阻止重试',async()=>{
   const h=harness();await h.state.load()

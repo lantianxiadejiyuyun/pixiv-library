@@ -2,11 +2,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api.dart';
 import 'models.dart';
+import 'library_search.dart';
+import 'tag_tracking_screen.dart';
 
 class TagBrowserScreen extends StatefulWidget {
   final LibraryApi api;
   final String source;
-  const TagBrowserScreen({super.key, required this.api, this.source = ''});
+  final TagSelection selection;
+  const TagBrowserScreen({
+    super.key,
+    required this.api,
+    this.source = '',
+    this.selection = const TagSelection([]),
+  });
   @override
   State<TagBrowserScreen> createState() => _TagBrowserScreenState();
 }
@@ -15,6 +23,8 @@ class _TagBrowserScreenState extends State<TagBrowserScreen> {
   final _search = TextEditingController();
   Timer? _debounce;
   List<LibraryTag> _tags = [];
+  late List<LibraryTag> _selected;
+  late String _mode;
   String _query = '';
   String? _error;
   int _request = 0;
@@ -23,6 +33,8 @@ class _TagBrowserScreenState extends State<TagBrowserScreen> {
   @override
   void initState() {
     super.initState();
+    _selected = [...widget.selection.tags];
+    _mode = widget.selection.mode;
     _load();
   }
 
@@ -86,11 +98,82 @@ class _TagBrowserScreenState extends State<TagBrowserScreen> {
     });
   }
 
+  void _toggle(LibraryTag tag) {
+    setState(() {
+      if (_selected.any((t) => t.id == tag.id)) {
+        _selected.removeWhere((t) => t.id == tag.id);
+      } else if (_selected.length < 20) {
+        _selected.add(tag);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('搜索标签')),
+    appBar: AppBar(
+      title: const Text('搜索标签'),
+      actions: [
+        IconButton(
+          tooltip: '追踪标签与下载',
+          icon: const Icon(Icons.radar),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => TagTrackingScreen(
+                api: widget.api,
+                tags: _selected.map((v) => v.name).toList(),
+                platform: widget.source,
+              ),
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: () =>
+              Navigator.of(context).pop(TagSelection([..._selected], _mode)),
+          child: const Text('查看作品'),
+        ),
+      ],
+    ),
     body: Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(child: Text('已选 ${_selected.length} / 20')),
+              DropdownButton<String>(
+                value: _mode,
+                onChanged: (v) => setState(() => _mode = v!),
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('全部匹配')),
+                  DropdownMenuItem(value: 'any', child: Text('匹配任一')),
+                ],
+              ),
+              TextButton(
+                onPressed: _selected.isEmpty
+                    ? null
+                    : () => setState(() => _selected = []),
+                child: const Text('清空'),
+              ),
+            ],
+          ),
+        ),
+        if (_selected.isNotEmpty)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (final tag in _selected)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: InputChip(
+                      label: Text(tag.displayName),
+                      onDeleted: () => _toggle(tag),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.all(16),
           child: TextField(
@@ -150,15 +233,22 @@ class _TagBrowserScreenState extends State<TagBrowserScreen> {
                         }
                         final tag = _tags[index];
                         return ListTile(
-                          leading: const Icon(Icons.tag),
+                          leading: Icon(
+                            _selected.any((t) => t.id == tag.id)
+                                ? Icons.check_box
+                                : Icons.check_box_outline_blank,
+                          ),
+                          selected: _selected.any((t) => t.id == tag.id),
                           title: Text(tag.displayName),
                           subtitle: Text(
                             '${tag.nameZh != null ? '${tag.name} · ' : ''}${tag.count} 部作品',
                           ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: _loading
+                          onTap:
+                              _loading ||
+                                  (_selected.length >= 20 &&
+                                      !_selected.any((t) => t.id == tag.id))
                               ? null
-                              : () => Navigator.of(context).pop(tag),
+                              : () => _toggle(tag),
                         );
                       },
                     ),

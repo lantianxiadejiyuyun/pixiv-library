@@ -1,0 +1,57 @@
+<script setup lang="ts">
+import { computed,onMounted,onBeforeUnmount,ref } from 'vue'
+import { RefreshCw,Pause,Play,Activity,ArrowDown,ArrowUp } from 'lucide-vue-next'
+import { api,errorMessage } from '../api'
+import { bytes } from '../types'
+import { percent,uptime } from '../performance'
+import type { PerformanceSnapshot } from '../performance'
+import PerformanceChart from './PerformanceChart.vue'
+const data=ref<PerformanceSnapshot|null>(null),error=ref(''),loading=ref(false),paused=ref(false)
+const current=computed(()=>data.value?.current),database=computed(()=>data.value?.database)
+const queues=computed(()=>Object.fromEntries((database.value?.queues||[]).map(q=>[q.id,q])))
+const queued=computed(()=>database.value?.status==='ok'?database.value.queues.reduce((n,q)=>n+q.queued,0):undefined),running=computed(()=>database.value?.status==='ok'?database.value.queues.reduce((n,q)=>n+q.running,0):undefined)
+let timer:ReturnType<typeof setTimeout>|undefined,controller:AbortController|undefined,revision=0,disposed=false,failures=0
+async function load(){
+  if(disposed||loading.value||document.hidden||paused.value)return
+  clearTimeout(timer);const id=++revision;controller=new AbortController();const signal=controller.signal
+  loading.value=true
+  try{const result=await api<PerformanceSnapshot>('/server/performance',{signal});if(disposed||id!==revision)return;data.value=result;error.value='';failures=0}
+  catch(e){if(!signal.aborted&&!disposed&&id===revision){error.value=errorMessage(e);failures++}}
+  finally{if(!disposed&&id===revision){loading.value=false;schedule()}}
+}
+function schedule(){clearTimeout(timer);if(!disposed&&!paused.value&&!document.hidden)timer=setTimeout(()=>void load(),failures>2?10000:2000)}
+function suspend(){clearTimeout(timer);revision++;controller?.abort();loading.value=false}
+function toggle(){paused.value=!paused.value;suspend();if(!paused.value)void load()}
+function visibility(){suspend();if(!document.hidden)void load()}
+function size(value:number|null|undefined){return value==null?'暂不可用':bytes(value)}
+const roleNames:Record<string,string>={api:'Web / API',manual_download:'手动下载',download:'自动下载',details:'详情解析',checks:'作者与订阅检查',retry:'失败重试',ai:'AI 识别',translation:'AI 汉化',other:'其他任务',other_process:'其他服务进程'}
+const stateNames:Record<string,string>={running:'运行中',starting:'启动中',restarting:'重启中',unresponsive:'无响应',unavailable:'暂不可用'}
+onMounted(()=>{void load();document.addEventListener('visibilitychange',visibility)})
+onBeforeUnmount(()=>{disposed=true;suspend();document.removeEventListener('visibilitychange',visibility)})
+</script>
+<template>
+  <section class="server-performance" aria-label="服务器性能">
+    <div class="performance-toolbar"><div><span class="status-pill" :class="data?.status==='ready'&&!error&&!paused?'success':'neutral'"><Activity :size="13"/>{{paused?'已暂停刷新':error?'连接中断':data?.status==='ready'?'实时采样':data?.status==='stale'?'数据已过期':'正在采样'}}</span><span class="muted">每 2 秒刷新 · 近 5 分钟趋势</span></div><div><button class="button secondary small" :disabled="loading||paused" @click="load"><RefreshCw :size="15" :class="{spin:loading}"/>刷新</button><button class="button secondary small" @click="toggle"><Play v-if="paused" :size="15"/><Pause v-else :size="15"/>{{paused?'恢复刷新':'暂停刷新'}}</button></div></div>
+    <p v-if="error" role="alert" class="alert error">{{error}}<span v-if="data"> · 保留上次采样</span></p>
+    <p v-if="!current&&!error" class="panel performance-empty">正在等待服务器首次采样…</p>
+    <template v-if="current">
+      <div class="performance-caption"><span>{{current.platform}} · {{current.container?'Docker 容器':'本机进程'}}</span><span>服务器已运行 {{uptime(current.uptime_seconds)}}</span><span>书库已运行 {{uptime(current.service_uptime_seconds)}}</span><time>{{new Date(current.sampled_at).toLocaleTimeString('zh-CN',{hour12:false})}}</time></div>
+      <div class="metric-grid">
+        <article class="panel metric"><span>服务器 CPU</span><strong>{{percent(current.cpu.host_percent)}}</strong><div class="meter"><i :style="{width:`${current.cpu.host_percent||0}%`}"/></div><small>{{current.cpu.logical_cpus}} 个逻辑 CPU<template v-if="current.cpu.load_average"> · 1 分钟负载 {{current.cpu.load_average[0]}}</template></small></article>
+        <article class="panel metric"><span>书库服务 CPU</span><strong>{{percent(current.cpu.service_percent)}}</strong><div class="meter"><i :style="{width:`${current.cpu.service_percent||0}%`}"/></div><small>按 {{current.cpu.service_capacity}} 核容量计算</small></article>
+        <article class="panel metric"><span>服务器内存</span><strong>{{percent(current.memory.host.percent)}}</strong><div class="meter"><i :style="{width:`${current.memory.host.percent}%`}"/></div><small>{{size(current.memory.host.used_bytes)}} / {{size(current.memory.host.total_bytes)}}</small></article>
+        <article class="panel metric"><span>书库服务内存</span><strong>{{percent(current.memory.service.percent)}}</strong><div class="meter"><i :style="{width:`${current.memory.service.percent||0}%`}"/></div><small>{{size(current.memory.service.used_bytes)}} / {{size(current.memory.service.limit_bytes)}} · {{current.container?'工作集':'RSS 合计'}}</small></article>
+      </div>
+      <div class="trend-grid"><PerformanceChart title="CPU 使用率" first="host_cpu" second="service_cpu" :points="data!.history"/><PerformanceChart title="内存使用率" first="host_memory" second="service_memory" :points="data!.history"/></div>
+      <div class="resource-grid">
+        <article class="panel resource"><h2>{{current.network.scope==='container'?'容器网络':'服务器网络'}}</h2><div class="network-rates"><div><span><ArrowDown :size="15"/>接收</span><strong>{{size(current.network.download_bps)}}/s</strong></div><div><span><ArrowUp :size="15"/>发送</span><strong>{{size(current.network.upload_bps)}}/s</strong></div></div><p>{{current.container?'当前容器网络；宿主机 NAS 挂载传输不计入此处。':'不包含回环接口；多个活动接口流量合计。'}}</p></article>
+        <article class="panel resource"><h2>数据库与任务 <small v-if="database?.stale">采样已过期</small></h2><div class="database-facts"><span>数据库<strong>{{database?.status==='ok'&&!database.stale?`${database.latency_ms} ms`:'暂不可用'}}</strong></span><span>等待任务<strong>{{queued?.toLocaleString()??'—'}}</strong></span><span>执行中<strong>{{running??'—'}}</strong></span></div><p v-if="database?.pool">Web 连接池：占用 {{database.pool.checked_out}} · 常驻 {{database.pool.size}} · 扩展 {{database.pool.overflow}}</p><p>每 10 秒读取队列，不扫描历史任务详情。</p></article>
+      </div>
+      <div class="resource-grid"><article v-for="disk in data!.storage" :key="disk.id" class="panel resource"><h2>{{disk.label}}<small v-if="data!.storage_stale">采样已过期</small></h2><template v-if="disk.status==='ok'"><div class="disk-value"><strong>{{size(disk.free_bytes)}}</strong><span>可用 / 共 {{size(disk.total_bytes)}}</span></div><div class="meter" :class="{warn:(disk.percent||0)>=90}"><i :style="{width:`${disk.percent||0}%`}"/></div><p>已使用 {{size(disk.used_bytes)}}（{{percent(disk.percent)}}） · 每 30 秒采样</p></template><p v-else>存储暂不可用，其他指标继续采样。</p></article></div>
+      <section class="panel process-panel"><header><h2>服务进程与队列</h2><span>{{current.worker_mode==='process'?'独立进程模式':current.worker_mode==='disabled'?'未启用工作进程':'线程模式'}}</span></header><div class="process-scroll"><table><thead><tr><th>服务</th><th>进程状态</th><th>任务 / 上限</th><th>等待</th><th>CPU¹</th><th>内存 RSS</th><th>绑定 CPU</th></tr></thead><tbody><tr v-for="process in current.processes" :key="`${process.lane}-${process.pid}`"><td><strong>{{roleNames[process.lane]||process.lane}}</strong><small>PID {{process.pid??'—'}}<template v-if="process.restarts"> · 已重启 {{process.restarts}} 次</template></small></td><td><span class="status-pill" :class="process.state==='running'?'success':'neutral'">{{stateNames[process.state]||process.state}}</span><small v-if="queues[process.lane]?.effective_paused||queues[process.lane]?.paused">队列已暂停</small></td><td>{{queues[process.lane]?`${queues[process.lane]!.running} / ${queues[process.lane]!.concurrency??'—'}`:'—'}}</td><td>{{queues[process.lane]?.queued.toLocaleString()??'—'}}</td><td>{{percent(process.cpu_percent)}}</td><td>{{size(process.rss_bytes)}}</td><td>{{process.cpus.length?process.cpus.join(', '):'未绑定'}}</td></tr></tbody></table></div><footer>¹ 单进程 CPU 以一个逻辑核为 100%。{{current.container?'服务资源包含 API、队列和内置代理，不含独立的 MySQL 容器；服务器整体指标包含虚拟机其他服务。':'RSS 合计可能重复统计共享页。'}} 进程列表不展示命令行、环境变量或凭据。</footer></section>
+    </template>
+  </section>
+</template>
+<style scoped>
+.server-performance{display:grid;gap:22px}.performance-toolbar,.performance-toolbar>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.performance-toolbar{justify-content:space-between}.performance-toolbar .muted{font-size:12px}.performance-toolbar .status-pill{display:flex;gap:6px;align-items:center}.performance-caption{display:flex;flex-wrap:wrap;gap:18px;font-size:12px;color:var(--text-secondary)}.performance-caption time{margin-left:auto}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}.metric{padding:22px;display:flex;flex-direction:column;gap:14px}.metric>span{font-size:13px;color:var(--text-secondary)}.metric>strong{font-size:30px;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:-1px}.metric small{font-size:12px;color:var(--text-secondary);line-height:1.7}.meter{height:6px;border-radius:10px;background:var(--surface-muted);overflow:hidden}.meter i{display:block;height:100%;background:var(--accent,#635bce);border-radius:inherit;transition:width .3s}.meter.warn i{background:#d97706}.trend-grid,.resource-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.resource{padding:22px}.resource h2{font-size:15px;margin:0 0 20px}.resource h2 small{font-size:12px;color:#a16207;margin-left:10px}.resource p{font-size:12px;color:var(--text-secondary);line-height:1.8;margin:18px 0 0}.network-rates,.database-facts{display:flex;gap:28px;flex-wrap:wrap}.network-rates>div,.database-facts>span{display:flex;flex-direction:column;gap:12px}.network-rates span,.database-facts>span{font-size:12px;color:var(--text-secondary)}.network-rates span{display:flex;align-items:center;gap:7px}.network-rates strong,.database-facts strong{font-size:22px;color:var(--text);font-variant-numeric:tabular-nums}.disk-value{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:20px}.disk-value strong{font-size:24px}.disk-value span{font-size:12px;color:var(--text-secondary)}.process-panel header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:22px}.process-panel h2{font-size:15px;margin:0}.process-panel header>span{font-size:12px;color:var(--text-secondary)}.process-scroll{overflow:auto}.process-panel table{width:100%;border-collapse:collapse;font-size:12px;text-align:left;white-space:nowrap}.process-panel th{font-weight:500;color:var(--text-secondary);padding:14px 20px;background:var(--surface)}.process-panel td{padding:16px 20px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}.process-panel td small{display:block;margin-top:6px;font-size:12px;color:var(--text-secondary)}.process-panel footer{padding:18px 22px;font-size:12px;color:var(--text-secondary);line-height:1.9}.performance-empty{padding:32px;color:var(--text-secondary)}@media(max-width:1100px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.trend-grid,.resource-grid{grid-template-columns:minmax(0,1fr)}.metric{padding:16px}.metric>strong{font-size:25px}.performance-caption time{margin-left:0}.performance-toolbar{gap:16px}.metric-grid{gap:12px}.server-performance{gap:18px}}
+</style>

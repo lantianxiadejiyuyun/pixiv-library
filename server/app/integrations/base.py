@@ -49,6 +49,7 @@ class RemoteWork:
     bookmark_count: int | None = None
     is_bookmarked: bool | None = None
     source_published_at: datetime | None = None
+    inline_images: dict[str, str] = field(default_factory=dict)
 
 
 def validate_url(url: str, hosts: tuple[str, ...], resolve=False) -> str:

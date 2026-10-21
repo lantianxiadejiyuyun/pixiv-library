@@ -24,7 +24,7 @@ function harness(record, handler) {
   const api = async (url, options = {}) => { calls.push({url, body: options.body ? JSON.parse(options.body) : null}); return handler(url, options) }
   const component = evaluate(readerSource, {
     vue: {...Vue, onMounted: () => {}, onBeforeUnmount: () => {}},
-    '../api': {api, errorMessage: value => value.message}, '../types': types, '../reading': reading, './SeriesPanel.vue': {},
+    '../api': {api, errorMessage: value => value.message}, '../types': types, '../reading': reading, './SeriesPanel.vue': {}, './NovelInlineImage.vue': {},
   }, {AbortController, document: {fullscreenElement: null}, requestAnimationFrame: callback => callback(), setTimeout: () => 1, clearTimeout: () => {}}).default
   const state = component.setup(record && {item: record}, {expose() {}, emit: (...args) => events.push(args)})
   state.content.value = {scrollHeight: 2000, clientHeight: 500, scrollTop: 0}

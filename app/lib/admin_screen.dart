@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
 import 'session.dart';
 import 'source_labels.dart';
+import 'server_performance_screen.dart';
 
 typedef JsonMap = Map<String, dynamic>;
 
@@ -313,6 +314,19 @@ class _AdminHomeState extends State<AdminHome> {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.monitor_heart_outlined),
+            title: const Text('服务器性能'),
+            subtitle: const Text('CPU、内存、存储、网络与队列负载'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ServerPerformanceScreen(api: widget.api),
+              ),
+            ),
+          ),
+        ),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null) ...[
           Text(

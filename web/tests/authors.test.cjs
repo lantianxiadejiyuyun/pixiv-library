@@ -67,3 +67,66 @@ test('回到作者作品时自动退出私密收藏筛选', async () => {
   assert.equal(h.state.privacy.value, 'public')
   assert.match(h.requests.at(-1).url, /restrict=public/)
 })
+
+function cachedHome(id = '10', paused = false) {
+  return {remote_id: id, section: 'works', category: 'manga', restrict: 'public', job: null, cached: true,
+    refresh_paused: paused,
+    profile: {remote_id: id, name: 'Saved author ' + id, synced_at: '2026-10-20T00:00:00Z'},
+    feed: {items: [{id: 'book-' + id}], revision: 1, total: 1, complete: true, has_more: false, job: null, refresh_paused: paused}}
+}
+
+test('已保存的作者首页一次请求显示资料和作品，不重复排队或轮询', async () => {
+  const h = harness(url => url === '/pixiv/authors/open' ? cachedHome() : undefined)
+  await h.state.open('10')
+  assert.equal(h.requests.length, 1)
+  assert.equal(h.requests[0].body.prefer_cached, true)
+  assert.equal(h.state.profile.value.name, 'Saved author 10')
+  assert.equal(h.state.feed.value.items[0].id, 'book-10')
+  assert.equal(h.state.category.value, 'manga')
+  assert.equal(h.state.opening.value, false)
+  assert.equal(h.timers.length, 0)
+})
+
+test('读取暂停时展示本地作品，结束加载且不自动制造联网任务', async () => {
+  const home = cachedHome('10', true)
+  home.profile.synced_at = undefined
+  home.feed.revision = 0; home.feed.job = {id: 'queued', status: 'queued'}
+  const h = harness(url => url === '/pixiv/authors/open' ? home : undefined)
+  await h.state.open('10')
+  assert.equal(h.requests.length, 1)
+  assert.equal(h.state.feed.value.items.length, 1)
+  assert.equal(h.state.opening.value, false)
+  assert.equal(h.state.pending.value, false)
+  assert.match(h.state.notice.value, /暂停/)
+  assert.equal(h.timers.length, 0)
+})
+
+test('迟到的整页缓存响应不能覆盖后来选择的作者', async () => {
+  const old = deferred()
+  const h = harness((url, body) => url === '/pixiv/authors/open' ? body.url_or_id === '10' ? old.promise : cachedHome('20') : undefined)
+  const previous = h.state.open('10')
+  await h.state.open('20')
+  old.resolve(cachedHome('10')); await previous
+  assert.equal(h.state.authorId.value, '20')
+  assert.equal(h.state.feed.value.items[0].id, 'book-20')
+})
+
+test('刷新资料时保留当前作品，暂停任务不启动持续轮询', async () => {
+  const h = harness(url => url === '/pixiv/authors/open' ? {remote_id: '10', refresh_paused: true, job: {id: 'queued', status: 'queued'}} : undefined)
+  h.state.authorId.value = '10'; h.state.feed.value = cachedHome().feed
+  await h.state.refreshProfile()
+  assert.equal(h.requests[0].body.prefer_cached, undefined)
+  assert.equal(h.state.feed.value.items[0].id, 'book-10')
+  assert.equal(h.state.opening.value, false)
+  assert.equal(h.timers.length, 0)
+})
+
+test('任务进行中暂停检查时停止资料与目录轮询，保留已显示内容', async () => {
+  const h = harness(url => url.startsWith('/pixiv/tasks/') ? {status: 'queued', refresh_paused: true} : undefined)
+  h.state.authorId.value = '10'; h.state.feed.value = cachedHome().feed
+  await h.state.watchProfile('profile', 0)
+  await h.state.watchFeed('feed', 0)
+  assert.equal(h.timers.length, 0)
+  assert.equal(h.state.feed.value.items[0].id, 'book-10')
+  assert.equal(h.state.pending.value, false)
+})

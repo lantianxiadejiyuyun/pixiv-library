@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'article_body.dart';
+import 'novel_blocks.dart';
 
 typedef _LayoutKey = ({
   String text,
+  List<NovelBlock>? blocks,
   String title,
   double width,
   TextStyle style,
@@ -25,6 +27,8 @@ typedef _LayoutKey = ({
 /// Only paragraphs near the viewport have widgets/render objects at any time.
 class NovelReaderBody extends StatefulWidget {
   final String text, title;
+  final List<NovelBlock>? blocks;
+  final Widget Function(NovelBlock image)? imageBuilder;
   final double fontSize, restoreOffset;
   final int restoreRevision;
   final ScrollController controller;
@@ -34,6 +38,8 @@ class NovelReaderBody extends StatefulWidget {
   const NovelReaderBody({
     super.key,
     required this.text,
+    this.blocks,
+    this.imageBuilder,
     required this.title,
     required this.fontSize,
     required this.restoreOffset,
@@ -119,7 +125,16 @@ class _NovelReaderBodyState extends State<NovelReaderBody> {
     if (!mounted || version != _version) return;
     var layout = _layouts.remove(key);
     if (layout == null) {
-      final sourceParagraphs = await _parse(key.text);
+      final sourceParagraphs = <NovelBlock>[];
+      for (final block in key.blocks ?? [NovelBlock(text: key.text)]) {
+        if (block.type == 'image') {
+          sourceParagraphs.add(block);
+        } else {
+          for (final text in await _parse(block.text)) {
+            sourceParagraphs.add(NovelBlock(text: text));
+          }
+        }
+      }
       if (!mounted || version != _version) return;
       final painter = TextPainter(
         textDirection: key.direction,
@@ -134,11 +149,22 @@ class _NovelReaderBodyState extends State<NovelReaderBody> {
         final tops = <double>[];
         final heights = <double>[];
         final paragraphs = <String>[];
+        final images = <int, NovelBlock>{};
         var top = 12 + titleHeight + 22;
         final gap = key.scaler.scale(key.style.fontSize!) * .9;
         final slice = Stopwatch()..start();
         for (var i = 0; i < sourceParagraphs.length; i++) {
-          final source = sourceParagraphs[i];
+          final block = sourceParagraphs[i];
+          if (block.type == 'image') {
+            images[paragraphs.length] = block;
+            paragraphs.add('');
+            tops.add(top);
+            final height = math.min(20000.0, key.width / block.aspectRatio);
+            heights.add(height);
+            top += height + gap;
+            continue;
+          }
+          final source = block.text;
           // Long LTR paragraphs are split only on already laid-out soft line
           // boundaries, with no added gap. Preserve full shaping context for
           // bidi/control text and special first/last-line height behavior.
@@ -175,6 +201,7 @@ class _NovelReaderBodyState extends State<NovelReaderBody> {
         }
         layout = _ArticleLayout(
           paragraphs: paragraphs,
+          images: images,
           tops: tops,
           heights: heights,
           titleHeight: titleHeight,
@@ -216,6 +243,7 @@ class _NovelReaderBodyState extends State<NovelReaderBody> {
       final scaler = MediaQuery.textScalerOf(context);
       final _LayoutKey key = (
         text: widget.text,
+        blocks: widget.blocks,
         title: widget.title,
         width: math.min(760, math.max(1, constraints.maxWidth - 48)),
         style: defaultStyle.merge(
@@ -280,7 +308,10 @@ class _NovelReaderBodyState extends State<NovelReaderBody> {
                     right: 0,
                     height: layout.heights[i],
                     child: RepaintBoundary(
-                      child: _text(layout.paragraphs[i], key.style, key),
+                      child: layout.images.containsKey(i)
+                          ? widget.imageBuilder?.call(layout.images[i]!) ??
+                                const Center(child: Text('插图暂不可用'))
+                          : _text(layout.paragraphs[i], key.style, key),
                     ),
                   ),
                 Positioned(
@@ -353,11 +384,13 @@ class _NovelReaderBodyState extends State<NovelReaderBody> {
 
 class _ArticleLayout {
   final List<String> paragraphs;
+  final Map<int, NovelBlock> images;
   final List<double> tops, heights;
   final double titleHeight, footerTop, totalHeight;
 
   _ArticleLayout({
     required this.paragraphs,
+    required this.images,
     required this.tops,
     required this.heights,
     required this.titleHeight,

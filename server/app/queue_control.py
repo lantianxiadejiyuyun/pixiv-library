@@ -67,16 +67,52 @@ def lane_settings(control):
                   "concurrency": stored.get(key, {}).get("concurrency", control.concurrency if key in COLLECTION_LANES else 1)} for key in LANES}
 
 
+def pause_event(paused, reason):
+    return {"paused": paused, "source": reason or "manual", "at": utcnow().isoformat() + "Z"}
+
+
+def validate_pause_reason(changes):
+    reason = changes.get("pause_reason")
+    if reason is not None and (reason not in ("manual", "maintenance") or changes.get("paused") is not True):
+        raise ValueError("暂停原因只能在暂停时指定")
+    return reason
+
+
+def pause_reasons(control, lane):
+    """Explain saved switches without inventing provenance for old records."""
+    stored, result = control.lanes or {}, []
+    def add(key, event):
+        known = isinstance(event, dict) and event.get("paused") is True and event.get("source") in ("manual", "maintenance")
+        source = event["source"] if known else "legacy"
+        label = "本队列" if key == "lane_paused" else "采集总开关"
+        message = (f"{label}因服务更新维护暂停" if source == "maintenance" else
+                   f"{label}已由管理端暂停" if source == "manual" else
+                   f"{label}保留了旧版暂停设置，旧记录未保存操作来源和时间")
+        result.append({"code": key, "source": source, "changed_at": event.get("at") if known else None,
+            "message": message, "action": "点击本队列「恢复」" if key == "lane_paused" else "点击「继续采集」恢复采集总开关"})
+    if lane_settings(control)[lane]["paused"]:
+        add("lane_paused", stored.get(lane, {}).get("pause_event"))
+    if control.paused and lane in COLLECTION_LANES:
+        add("master_paused", stored.get("_collection_pause"))
+    return result
+
+
 def update_lane(key, changes):
     if key not in LANES:
         raise ValueError("队列不存在")
+    reason = validate_pause_reason(changes)
     with SessionLocal() as db:
         control = lock_control(db)
         lanes = lane_settings(control)
-        lanes[key] = {**lanes[key], **changes}
-        control.lanes = lanes
+        stored = dict(control.lanes or {})
+        record = {**stored.get(key, {}), **lanes[key]}
+        if "paused" in changes and changes["paused"] != lanes[key]["paused"]:
+            record["pause_event"] = pause_event(changes["paused"], reason)
+        record.update({name: value for name, value in changes.items() if name != "pause_reason"})
+        stored[key] = record
+        control.lanes = stored
         db.commit()
-        return lanes[key]
+        return lane_settings(control)[key]
 
 
 class QueuePaused(JobCancelled):
@@ -115,12 +151,16 @@ def read_settings():
 
 
 def update_settings(changes):
+    reason = validate_pause_reason(changes)
     with SessionLocal() as db:
         control = lock_control(db)
         if "request_interval_seconds" in changes:
             if "min_interval_seconds" in changes or "max_interval_seconds" in changes:
                 raise ValueError("固定间隔与随机间隔不能同时指定")
             changes = {**changes, "min_interval_seconds": changes["request_interval_seconds"], "max_interval_seconds": changes["request_interval_seconds"]}
+        stored = dict(control.lanes or {})
+        if "paused" in changes and changes["paused"] != control.paused:
+            stored["_collection_pause"] = pause_event(changes["paused"], reason)
         for key in ("paused", "rate_limit_enabled", "concurrency", "min_interval_seconds", "max_interval_seconds"):
             if key in changes:
                 setattr(control, key, changes[key])
@@ -128,8 +168,8 @@ def update_settings(changes):
             # Collection-wide settings must not overwrite independent lanes.
             lanes = lane_settings(control)
             for key in COLLECTION_LANES:
-                lanes[key]["concurrency"] = changes["concurrency"]
-            control.lanes = lanes
+                stored[key] = {**stored.get(key, {}), **lanes[key], "concurrency": changes["concurrency"]}
+        control.lanes = stored
         if type(control.concurrency) is not int or not 1 <= control.concurrency <= MAX_CONCURRENCY:
             raise ValueError(f"并发任务数必须是 1–{MAX_CONCURRENCY} 的整数")
         if not all(math.isfinite(v) for v in (control.min_interval_seconds, control.max_interval_seconds)) or not 0 <= control.min_interval_seconds <= control.max_interval_seconds <= 60:

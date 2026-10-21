@@ -7,7 +7,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 from PIL import Image
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -194,7 +194,7 @@ def _validate_import_file(name, data):
     return name, data if content is raw else stage(content), mime
 
 
-def import_files(db: Session, files: list[tuple[str, bytes | StagedFile]], *, title: str | None = None, item_type: str = "manga", source: str = "local", source_id: str | None = None, source_url: str | None = None, author: str = "", description: str = "", language: str = "", tags: list[str] | None = None, before_commit=None, checkpoint=None) -> Item:
+def import_files(db: Session, files: list[tuple[str, bytes | StagedFile]], *, title: str | None = None, item_type: str = "manga", source: str = "local", source_id: str | None = None, source_url: str | None = None, author: str = "", description: str = "", language: str = "", tags: list[str] | None = None, before_commit=None, checkpoint=None, inline_images=None) -> Item:
     validate_collection(source)
     if item_type not in {"manga", "illustration", "novel", "article"}:
         raise ValueError("不支持的内容类型")
@@ -204,6 +204,8 @@ def import_files(db: Session, files: list[tuple[str, bytes | StagedFile]], *, ti
         if existing and existing.assets:
             return existing
     normalized = expand_files(files)
+    if inline_images:
+        normalized.sort(key=lambda file: bool(inline_images.get(file[0])))
     title = (title or Path(files[0][0]).stem).strip()
     if not title or len(title) > 512:
         raise ValueError("标题不能为空且不能超过 512 字符")
@@ -218,7 +220,8 @@ def import_files(db: Session, files: list[tuple[str, bytes | StagedFile]], *, ti
                 checkpoint(93 + int(3 * position / len(validated)))
             relative, digest = save_staged_blob(data, source=source) if isinstance(data, StagedFile) else save_blob(data, source=source)
             size = data.size if isinstance(data, StagedFile) else len(data)
-            item.assets.append(Asset(position=position, relative_path=relative, original_name=name, mime_type=mime, sha256=digest, size_bytes=size, status="available"))
+            geometry = inline_geometry(name, data, mime, inline_images or {})
+            item.assets.append(Asset(position=position, relative_path=relative, original_name=name, mime_type=mime, sha256=digest, size_bytes=size, status="available", **geometry))
         db.add(item)
         db.flush()
         if tags:
@@ -241,6 +244,50 @@ def import_files(db: Session, files: list[tuple[str, bytes | StagedFile]], *, ti
     return item
 
 
+def inline_geometry(name, data, mime, images):
+    key = images.get(name)
+    if key is None:
+        return {}
+    from .novel_text import IMAGE_MARKER
+    if not IMAGE_MARKER.fullmatch(f"[{key}]") or not mime.startswith("image/"):
+        raise ValueError("正文插图关联无效")
+    with Image.open(io.BytesIO(data.read() if isinstance(data, StagedFile) else data)) as picture:
+        width, height = picture.size
+    return {"inline_key": key, "width": width, "height": height}
+
+
+def append_novel_images(db, item_id, files, images, *, before_commit):
+    """Append under the item lock; never change text, manual fields or progress."""
+    validated = [_validate_import_file(name, data) for name, data in expand_files(files)] if files else []
+    item = db.scalar(select(Item).where(Item.id == item_id).with_for_update())
+    if item is None:
+        db.rollback()
+        return None
+    existing = {a.inline_key: a for a in item.assets if a.inline_key}
+    position = max((a.position for a in item.assets), default=-1) + 1
+    added = 0
+    for name, data, mime in validated:
+        geometry = inline_geometry(name, data, mime, images)
+        if not geometry or (geometry["inline_key"] in existing and existing[geometry["inline_key"]].status == "available"):
+            continue
+        relative, digest = save_staged_blob(data, source=item.source) if isinstance(data, StagedFile) else save_blob(data, source=item.source)
+        values = dict(relative_path=relative, original_name=name, mime_type=mime, sha256=digest,
+                      size_bytes=data.size if isinstance(data, StagedFile) else len(data), status="available", **geometry)
+        asset = existing.get(geometry["inline_key"])
+        if asset:
+            for key, value in values.items():
+                setattr(asset, key, value)
+        else:
+            asset = Asset(position=position, **values)
+            item.assets.append(asset)
+            position += 1
+        added += 1
+        existing[geometry["inline_key"]] = asset
+    before_commit(db)
+    db.commit()
+    return added
+
+
 def import_local_paths(db: Session, paths: list[Path], **kwargs) -> Item:
     total = 0
     files = []
@@ -257,12 +304,42 @@ def iso(value):
     return value.isoformat() + "Z" if value else None
 
 
-def build_item_view(item: Item, include_assets: bool = False) -> dict:
-    assets = sorted(item.assets, key=lambda a: a.position)
-    cover = next((a for a in assets if a.mime_type.startswith("image/") and a.status == "available"), None)
-    value = {"id": item.id, "title": item.title, "type": item.type, "source": item.source, "source_url": item.source_url, "description": item.description, "author": item.author, "language": item.language, "rating": item.rating, "rating_origin": item.rating_origin, "tags": [{"id": link.tag_id, "name": link.tag.name, "origin": link.origin, "score": link.score} for link in item.item_tags], "page_count": len(assets), "size_bytes": sum(a.size_bytes for a in assets), "cover_url": f"/api/assets/{cover.id}/thumbnail" if cover else None, "created_at": iso(item.created_at), "updated_at": iso(item.updated_at), "progress": {"page": item.progress.page} if item.progress else None}
-    missing = bool(assets) and any(asset.status != "available" for asset in assets)
-    value.update(content_state=("failed" if missing else "ready") if assets else item.content_state,
+def build_item_cards(db: Session, items: list[Item]) -> list[dict]:
+    """Summarize just this page in SQL; never hydrate every manga page Asset."""
+    if not items:
+        return []
+    summaries = {item.id: {"page_count": 0, "size_bytes": 0, "missing": False, "cover_url": None} for item in items}
+    first_images = []
+    rows = db.execute(select(Asset.item_id, func.sum(case((Asset.inline_key.is_(None), 1), else_=0)), func.sum(Asset.size_bytes),
+        func.max(case((Asset.status != "available", 1), else_=0)),
+        func.min(case((Asset.mime_type.startswith("image/") & (Asset.status == "available"), Asset.position), else_=None)))
+        .where(Asset.item_id.in_(summaries)).group_by(Asset.item_id))
+    for item_id, count, size, missing, first_image in rows:
+        summaries[item_id].update(page_count=count, size_bytes=int(size or 0), missing=bool(missing))
+        if first_image is not None:
+            first_images.append((item_id, first_image))
+    if first_images:
+        for item_id, asset_id in db.execute(select(Asset.item_id, Asset.id).where(
+                tuple_(Asset.item_id, Asset.position).in_(first_images))):
+            summaries[item_id]["cover_url"] = f"/api/assets/{asset_id}/thumbnail"
+    return [build_item_view(item, asset_summary=summaries[item.id]) for item in items]
+
+
+def build_item_view(item: Item, include_assets: bool = False, *, asset_summary: dict | None = None) -> dict:
+    if asset_summary is None:
+        assets = sorted(item.assets, key=lambda a: a.position)
+        cover = next((a for a in assets if a.mime_type.startswith("image/") and a.status == "available"), None)
+        count, size = sum(a.inline_key is None for a in assets), sum(a.size_bytes for a in assets)
+        missing = bool(assets) and any(asset.status != "available" for asset in assets)
+        cover_url = f"/api/assets/{cover.id}/thumbnail" if cover else None
+    else:
+        if include_assets:
+            raise ValueError("文件汇总不能代替作品详情中的文件列表")
+        assets = None
+        count, size = asset_summary["page_count"], asset_summary["size_bytes"]
+        missing, cover_url = asset_summary["missing"], asset_summary["cover_url"]
+    value = {"id": item.id, "title": item.title, "type": item.type, "source": item.source, "source_url": item.source_url, "description": item.description, "author": item.author, "language": item.language, "rating": item.rating, "rating_origin": item.rating_origin, "tags": [{"id": link.tag_id, "name": link.tag.name, "origin": link.origin, "score": link.score} for link in item.item_tags], "page_count": count, "size_bytes": size, "cover_url": cover_url, "created_at": iso(item.created_at), "updated_at": iso(item.updated_at), "progress": {"page": item.progress.page} if item.progress else None}
+    value.update(content_state=("failed" if missing else "ready") if count else item.content_state,
                  content_error="正文文件缺失，请检查 NAS 或恢复备份" if missing else item.content_error,
                  content_job_id=item.content_job_id, remote_page_count=item.remote_page_count,
                  source_series=item.source_series)
@@ -274,7 +351,7 @@ def build_item_view(item: Item, include_assets: bool = False) -> dict:
     value.update(is_favorite=item.favorite is not None, user_score=item.user_score or 0,
                  favorite_group_ids=sorted(link.group_id for link in item.favorite.groups) if item.favorite else [],
                  source_bookmark_count=item.source_bookmark_count)
-    if not assets and item.type not in ("novel", "article") and item.remote_page_count:
+    if not count and item.type not in ("novel", "article") and item.remote_page_count:
         value["page_count"] = item.remote_page_count
     for tag_view, link in zip(value["tags"], item.item_tags):
         tag_view.update(name_zh=link.tag.name_zh, display_name=link.tag.name_zh or link.tag.name)
@@ -283,7 +360,9 @@ def build_item_view(item: Item, include_assets: bool = False) -> dict:
     if item.preview_cover:
         value["cover_url"] = f"/api/items/{item.id}/cover"
     if include_assets:
-        value["assets"] = [{"id": a.id, "position": a.position, "original_name": a.original_name, "mime_type": a.mime_type, "size_bytes": a.size_bytes, "status": a.status, "url": f"/api/assets/{a.id}/content"} for a in assets]
+        entries = [{"id": a.id, "position": a.position, "original_name": a.original_name, "mime_type": a.mime_type, "size_bytes": a.size_bytes, "status": a.status, "inline_key": a.inline_key, "width": a.width, "height": a.height, "url": f"/api/assets/{a.id}/content"} for a in assets]
+        value["assets"] = [a for a in entries if not a["inline_key"]]
+        value["inline_assets"] = [a for a in entries if a["inline_key"]]
     return value
 
 

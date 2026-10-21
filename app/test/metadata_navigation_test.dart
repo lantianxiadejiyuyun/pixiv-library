@@ -114,6 +114,8 @@ void main() {
       expect(find.text('blue_eyes · 4 部作品'), findsOneWidget);
       await tester.tap(find.widgetWithText(ListTile, '蓝眼睛'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('查看作品'));
+      await tester.pumpAndSettle();
       expect(api.queries.last['tag'], 'tag-id');
       expect(api.queries.last['source'], 'pixiv');
       expect(api.queries.last.containsKey('q'), false);

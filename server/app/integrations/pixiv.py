@@ -244,7 +244,10 @@ class PixivConnector(Connector):
             text = body.get("text") or body.get("novel_text") or (nested.get("text") if isinstance(nested, Mapping) else None)
             if not isinstance(text, str) or not text:
                 raise ConnectorError("Pixiv 小说正文格式已变化，请更新适配器；未保存空正文")
-            result.files = [(f"{ident}.txt", text.encode("utf-8"))]
+            if len(text.encode("utf-8")) > 16 * 1024 * 1024:
+                raise ConnectorError("小说正文超过 16 MiB 限制")
+            result.files.append((f"{ident}.txt", text.encode("utf-8")))
+            self._novel_images(api, body, text, result, checkpoint)
         else:
             pages = work.get("meta_pages") or []
             if not isinstance(pages, list) or any(not isinstance(p, Mapping) or not isinstance(p.get("image_urls"), Mapping) for p in pages):
@@ -278,6 +281,75 @@ class PixivConnector(Connector):
             finally:
                 client.close()
         return result
+
+    def fetch_novel_images(self, value, text, *, checkpoint=lambda value: None, existing_keys=()):
+        """Backfill the immutable local text, never replace it with a newer edit."""
+        ident = self.normalize_id(value)
+        if not ident.startswith("novel:"):
+            raise ConnectorError("仅 Pixiv 小说支持补抓正文插图")
+        api = self._api()
+        from pixivpy3 import PixivError
+        try:
+            body = self._check(api.webview_novel(ident.split(":")[-1]))
+        except PixivError as exc:
+            raise ConnectorError("Pixiv 小说插图目录读取失败") from exc
+        if body.get("id") is not None and self._positive_id(body["id"]) != ident.split(":")[-1]:
+            raise ConnectorError("Pixiv 小说正文编号与请求不一致")
+        result = RemoteWork(remote_id=ident, title="插图补全", source_url="", item_type="novel")
+        self._novel_images(api, body, text, result, checkpoint, existing_keys=existing_keys)
+        return result
+
+    def _novel_images(self, api, body, text, result, checkpoint, *, existing_keys=()):
+        from app.novel_text import image_keys
+        keys = [key for key in image_keys(text) if key not in existing_keys]
+        if not keys:
+            return
+        images = body.get("images") or {}
+        if not isinstance(images, Mapping):
+            raise ConnectorError("Pixiv 小说插图目录格式无效")
+        resolved, artwork = {}, {}
+        for key in keys:
+            checkpoint(12)
+            kind, ident = key.split(":")
+            if kind == "uploadedimage":
+                entry = images.get(ident)
+                urls = entry.get("urls") if isinstance(entry, Mapping) else None
+                url = urls.get("original") if isinstance(urls, Mapping) else None
+            else:
+                ident, _, page = ident.partition("-")
+                page = int(page or "1") - 1
+                if ident not in artwork:
+                    entry = self._check(api.illust_detail(ident)).get("illust")
+                    if not isinstance(entry, Mapping) or self._positive_id(entry.get("id")) != ident:
+                        raise ConnectorError("小说引用的 Pixiv 插画不可用")
+                    pages = entry.get("meta_pages") or []
+                    artwork[ident] = [p.get("image_urls", {}).get("original") for p in pages] if isinstance(pages, list) and pages else [(entry.get("meta_single_page") or {}).get("original_image_url")]
+                urls = artwork[ident]
+                url = urls[page] if page < len(urls) else None
+            if not isinstance(url, str) or not url:
+                raise ConnectorError("小说部分正文插图不可用；原正文已保留，可在重试队列重试")
+            validate_url(url, ("pximg.net",))
+            suffix = PurePosixPath(urlparse(url).path).suffix.lower()
+            if suffix not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+                raise ConnectorError("Pixiv 小说插图格式不支持")
+            resolved[key] = (url, suffix)
+        client = SafeHTTP(("pximg.net",), headers={"Referer": "https://www.pixiv.net/"})
+        try:
+            total, downloaded = 0, {}
+            for index, (key, (url, suffix)) in enumerate(resolved.items()):
+                checkpoint(15 + int(70 * index / len(resolved)))
+                if url not in downloaded:
+                    content = client.fetch(url)
+                    total += len(content)
+                    if total > 512 * 1024 * 1024:
+                        raise ConnectorError("小说插图超过 512 MiB 限制")
+                    from app.download_staging import stage
+                    downloaded[url] = stage(content)
+                name = "novel-" + key.replace(":", "-") + suffix
+                list.append(result.files, (name, downloaded[url]))
+                result.inline_images[name] = key
+        finally:
+            client.close()
 
     @classmethod
     def normalize_author(cls, value):

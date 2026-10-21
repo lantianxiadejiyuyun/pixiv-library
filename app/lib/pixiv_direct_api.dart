@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'novel_blocks.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -481,7 +482,10 @@ class PixivDirectApi {
     return values;
   }
 
-  Future<String> novelText(String remoteId) async {
+  Future<String> novelText(String remoteId) async =>
+      (await novelDocument(remoteId)).text;
+
+  Future<NovelDocument> novelDocument(String remoteId) async {
     final html = utf8.decode(
       await _apiBytes(
         _apiUri('/webview/v2/novel', {
@@ -516,13 +520,46 @@ class PixivDirectApi {
           }
           final text = body['text'];
           if (text is! String || text.isEmpty) throw const FormatException();
-          return text;
+          return await _novelDocument(text, body);
         } catch (_) {
           throw const ApiFailure('Pixiv 小说正文格式无效');
         }
       }
     }
     throw const ApiFailure('Pixiv 小说正文不完整');
+  }
+
+  Future<NovelDocument> _novelDocument(String text, Map body) async {
+    final keys = novelImageMarker.allMatches(text).map((m) => m[1]!).toSet();
+    if (keys.length > 500) throw const ApiFailure('小说插图超过 500 张限制');
+    final images = <String, String>{};
+    final artworks = <String, List<String>>{};
+    for (final key in keys) {
+      try {
+        String? url;
+        if (key.startsWith('uploadedimage:')) {
+          final entry = (body['images'] as Map?)?[key.split(':')[1]];
+          if (entry is Map) {
+            url = ((entry['urls'] as Map?)?['original']) as String?;
+          }
+        } else {
+          final values = key.split(':')[1].split('-');
+          final ident = values[0],
+              page = int.parse(values.length > 1 ? values[1] : '1') - 1;
+          final urls = artworks[ident] ??= pages(
+            await detail(ident, novel: false),
+          );
+          if (page < urls.length) url = urls[page];
+        }
+        if (url != null) {
+          imageUri(url);
+          images[key] = url;
+        }
+      } catch (_) {
+        // Deleted or restricted illustrations must not hide the readable text.
+      }
+    }
+    return NovelDocument(text, novelBlocks(text, images));
   }
 
   Future<void> logout() async {

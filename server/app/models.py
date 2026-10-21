@@ -93,6 +93,9 @@ class Asset(Base):
     sha256: Mapped[str] = mapped_column(String(64), index=True)
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(24), default="available")
+    inline_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     item: Mapped[Item] = relationship(back_populates="assets")
 
 
@@ -330,6 +333,10 @@ class AndroidRelease(Base):
 Index("ix_item_recent", Item.created_at)
 Index("ix_item_source_recent", Item.source, Item.created_at.desc(), Item.id)
 Index("ix_item_order_recent", Item.created_at.desc(), Item.id)
+Index("ix_items_author_recent", Item.author, Item.created_at.desc(), Item.id)
+Index("ix_items_source_author_type", Item.source, Item.author_source_id, Item.type, Item.created_at.desc(), Item.id)
+Index("ix_author_feed_page", AuthorFeedEntry.feed_id, AuthorFeedEntry.generation.desc(), AuthorFeedEntry.position, AuthorFeedEntry.item_id)
+Index("ix_jobs_kind_recent", Job.kind, Job.updated_at.desc(), Job.id.desc())
 Index("ix_jobs_lane_recent", Job.queue_lane, Job.created_at.desc(), Job.id)
 Index("ix_jobs_recent", Job.created_at.desc(), Job.id)
 Index("ix_jobs_download_stats", Job.download_account_id, Job.status)

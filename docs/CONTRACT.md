@@ -15,6 +15,14 @@ Run Compose through `python scripts/compose.py [--intel] ...`, `deploy/run.ps1 [
 
 `scripts/configure_git.py` installs checkout-local absolute core.excludesFile/core.attributesFile paths and requires this project's own Git checkout. Bootstrap invokes it before generating credentials when a local .git exists; ZIP/NAS deployments without Git initialize normally and are told to configure ignores before later adding the project to Git. The deployment folder also carries a direct .gitignore safeguard for .env, with .env.example excluded from that rule.
 
+## Multi-tag search and suggestions (2026-10-18)
+
+`GET /api/items` accepts `tag_ids` (comma-separated stable tag IDs, at most 20 distinct IDs, each at most 36 characters) and `tag_mode=all|any` (default `all`). Empty selections apply no tag constraint. Unknown IDs match no tag; multiple assignment origins never duplicate items or affect pagination totals. Other filters remain conjunctive. The legacy `tag` parameter continues to accept one exact ID/name; if both parameters are supplied, its constraint is applied in addition to `tag_ids`.
+
+`GET /api/tags?suggest=true&q=...&source=...` searches original names and Chinese translations, ranking case-insensitive exact matches before prefixes and substring matches. `%` and `_` in input remain literal characters. Suggestions default to 12 and are capped at 20, count only the selected IDs, and exclude unused tags. Ordinary paginated `/tags` remains compatible. No schema migration or external AI request is required.
+
+Web and native App offer multi-select (at most 20), remove-chip controls, all/any mode, debounced suggestions and local search history. History retains at most 20 distinct keyword/tag/mode combinations; Web scopes by browser origin, App by bound server origin. Loading, invalid storage and late requests must not corrupt selections or overwrite newer suggestions. History never stores credentials and may be removed individually or cleared. Platform/content/favorite filters remain effective when combining tags; single-tag detail links continue to work.
+
 ## Shared backend conventions
 FastAPI, SQLAlchemy 2, Python 3.12. `app.database.get_db` yields a SQLAlchemy Session; `app.database.SessionLocal` is a session factory. `app.config.settings` exposes `database_url`, `storage_root` (Path), `admin_password`, `secret_key`, `model_dir` (Path). Backend core exports `app.models.Base`, `Item`, `Asset`, `Tag`, `ItemTag`, `Job`, `SourceAccount`, `Subscription`, `ReadingProgress`; UUID IDs are strings. Integrations import lazily when useful.
 
@@ -256,4 +264,32 @@ GET /items 新增 favorite=true、favorite_group={id|ungrouped}、history=true�
 
 手机 Bearer 只扩展上述精确路径的读写、分组删除与清空历史，以及 POST /items/{id}/cover-refresh；不授予作品删除、任意 PATCH、账号或队列设置权限。原鉴权、设备撤销、Origin 校验保持。封面刷新复用详情队列、原限速和账号功能分配，仅为 Pixiv 排队 download=false；已下载小说可补封面，原文、评分、收藏和进度保持。
 
-Pixiv total_bookmarks 使用非负整数记录；EH filecount、PicACG pagesCount、JM SDK page_count 和 Pixiv page_count 在元数据阶段保存总页数。缺失或不合法数据不伪造为 0；其他平台未返回真实收藏人数时保持 null。Pixiv 小说合并下载另存 preview_cover，正文 assets 仍只有文本文件。图像列表在无正文时可使用 remote_page_count 展示 P 数；实际阅读仍由 content_state 与 assets 判定。
+Pixiv total_bookmarks 使用非负整数记录；EH filecount、PicACG pagesCount、JM SDK page_count 和 Pixiv page_count 在元数据阶段保存总页数。缺失或不合法数据不伪造为 0；其他平台未返回真实收藏人数时保持 null。Pixiv 小说合并下载另存 preview_cover。图像列表在无正文时可使用 remote_page_count 展示 P 数；实际阅读仍由 content_state 与 assets 判定。
+
+## 小说正文插图与标签追踪
+
+迁移 e71b4c8213de 在 assets 添加可空 inline_key、width、height。Pixiv 下载保留原始 UTF-8 TXT，识别 uploadedimage 和 pixivimage（含分 P）标记，只下载受信任的 pximg.net HTTPS 图片；重复引用复用请求。正文插图与封面独立，图片按文件验证、暂存和完整导入，受单文件、总量、500 张插图与队列取消限制。已有正文以 novel_images_only 下载任务追加插图，不重新合并标题、收藏、评分、标签或进度；原 TXT 不覆盖。
+
+GET /assets/{id}/text-sections 保留原 index/title/text，新增 blocks：纯文本块或 image 块。图片只解析为同一作品的本地资产 URL 和已验证宽高，无法解析的引用保留 unavailable 占位。详情的 assets 仍为独立阅读文件，inline_assets 单独列出正文插图；page_count 不增加，size_bytes 和作品 ZIP 导出包含插图。旧客户端不会将插图当作额外文件翻页。Web 与 Flutter 按原位置混排；Flutter 继续以已测量高度虚拟化章节，图片加载或失败重试不改变滚动长度。Pixiv 直连阅读使用手机主账号读取插图，缺失图片不阻止阅读文字。
+
+GET/POST /tag-tracking 复用 target_type=tag 的订阅；POST 接受 platform（pixiv/picacg/kemono）、1–20 个原文 tags、auto_download（默认 true）、content_scope（Pixiv 默认 all）、interval_minutes（30–10080）。标签去空白、NFC 规范化并去重，同平台同标签复用已有订阅，活跃检查任务合并。每次检查平台最新一页，不承诺完整历史回溯；不同标签独立追踪，不将本地标签翻译作为远端搜索词。
+
+PATCH/DELETE /tag-tracking/{id} 仅操作标签订阅，PATCH 仅允许启停、自动下载、范围与间隔；POST /tag-tracking/{id}/check 在原检查队列排队。Pixiv 检索使用主账号，发现作品的正文进入原自动下载队列，保持主副账号功能、每账号与各队列并发限制。关闭追踪或取消追踪保留已入库作品，不取消此前已经排队的下载。手机阅读凭据仅扩展精确的标签追踪接口，不获得通用订阅、账号或队列管理权限。
+
+## 服务器性能面板
+
+GET /api/server/performance 只允许管理员 Cookie，普通扫码设备凭据不授予该接口。响应为内存缓存快照：status、sample_age_seconds、current、history、database、storage；首次或计数器复位时速率为 null，不伪造为零。重启清空趋势，保留最多 150 个两秒采样点，不新增数据库表。
+
+CPU 和内存区分当前操作系统整体与书库服务。Docker 使用 cgroup v2／v1 配额、CPU 累计时间及内存工作集（当前使用减 inactive_file）；非容器使用 API 和后代进程的 CPU／RSS 合计，RSS 可能重复计共享页。整体 CPU 个数不由已绑定单核的 API 进程亲和性推断。单进程 CPU 以一个逻辑核为 100%，列出 PID、队列、状态、绑定核心及重启次数，不返回命令行、环境变量、数据库 URL 或存储路径。
+
+系统采样每两秒；数据库独立线程每十秒 SELECT 1 并只汇总各 lane 的 queued/running，利用任务领取索引，不统计全部历史任务；存储独立线程每三十秒 statvfs，只读取磁盘容量，不递归扫描书库。请求路径不执行采样、SQL 或 NAS I/O；数据库、存储错误和过期单独标记。容器网络仅统计当前网络命名空间的非回环接口，不包含宿主机 SMB 挂载传输；服务资源不含独立 MySQL 容器。
+
+Web #performance 与 App 管理工作台提供只读原生面板。两秒轮询、连续失败退避至十秒，保留最后成功数据，支持暂停；页面隐藏／App 后台／离页停止轮询，迟到响应不能覆盖新页面。
+
+## 队列暂停与等待原因
+
+GET /queue/status 的各 lane 增加 diagnostic={state,code,reasons}，只读解释当前状态，不领取任务、切换账号或自动恢复开关。state 为 paused/waiting/running/idle/ready。暂停只表示本队列开关或采集总开关；手动下载、失败重试及 AI 等独立队列不受采集总暂停影响。本队列和总开关同时暂停时返回两条原因及各自恢复方法。
+
+PUT /queue/settings 与 PUT /queue/lanes/{lane} 保持原响应，新增可选 pause_reason=manual/maintenance，仅在 paused=true 时接受。实际开关转换记录 UTC 时间和来源；重复提交同状态不重写原始原因，改并发或其他队列也保留记录。元数据复用 queue_control.lanes JSON：各 lane.pause_event 和 _collection_pause，不新增表。旧暂停没有来源时返回 source=legacy、changed_at=null，并明确说明旧版未记录，不将旧暂停归因于管理员、维护、限流或故障。
+
+等待诊断区分平台冷却及预计恢复时间、队列并发占满、账号共享并发占满、工作进程未启用／启动／重启／心跳超时。账号诊断只在网络队列尚有等待任务且未达队列并发上限时，复用领取时的身份容量 SQL 条件检查是否存在可执行任务，不解密账号令牌或改变任务分配。空队列显示无待执行任务，历史失败记录不会自动当作待执行任务。SIGKILL 或进程重启不直接推断为 OOM。

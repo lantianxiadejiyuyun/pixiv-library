@@ -9,8 +9,8 @@ import anyio
 from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy import and_, func, literal, or_, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, case, func, literal, or_, select, text
+from sqlalchemy.orm import Session, raiseload
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
@@ -18,11 +18,12 @@ from .auth import COOKIE_NAME, check_password, is_authenticated, issue_session, 
 from .config import settings
 from .cors import LibraryCORSMiddleware
 from .database import Base, SessionLocal, engine, get_db
-from .library import SUPPORTED_EXTENSIONS, build_item_view, import_files, import_local_paths, iso, natural_key, reconcile_assets, set_tags
+from .library import SUPPORTED_EXTENSIONS, build_item_cards, build_item_view, import_files, import_local_paths, iso, natural_key, reconcile_assets, set_tags
 from .models import Asset, Item, ItemTag, Job, ReadingProgress, Tag, utcnow
 from .schemas import FolderImport, ItemPatch, LoginRequest, ProgressUpdate
 from .storage import assert_storage_available, initialize_storage, resolve_asset_path
 from .mobile_admin import router as mobile_admin_router
+from .server_performance import router as performance_router, monitor as performance_monitor
 
 
 @asynccontextmanager
@@ -55,9 +56,11 @@ async def lifespan(app: FastAPI):
         result = start_worker()
         if inspect.isawaitable(result):
             await result
+    performance_monitor.start()
     try:
         yield
     finally:
+        performance_monitor.stop()
         if stop_worker:
             result = stop_worker()
             if inspect.isawaitable(result):
@@ -67,6 +70,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="栖页 · 私人图书馆", version="0.1.0", lifespan=lifespan, docs_url="/api/docs" if settings.environment != "production" else None, redoc_url=None)
 app.include_router(mobile_admin_router, prefix="/api")
+app.include_router(performance_router, prefix="/api")
 
 
 @app.middleware("http")
@@ -158,16 +162,16 @@ def get_item(item_id: str, db: Session) -> Item:
 
 @api.get("/dashboard")
 def dashboard(db: Session = Depends(get_db)):
-    recent = db.scalars(select(Item).order_by(Item.created_at.desc()).limit(8)).all()
+    recent = db.scalars(select(Item).options(raiseload(Item.assets)).order_by(Item.created_at.desc()).limit(8)).all()
     sources = dict(db.execute(select(Item.source, func.count(Item.id)).group_by(Item.source)).all())
     total = sum(sources.values())
     pages, size = db.execute(select(func.count(Asset.id), func.sum(Asset.size_bytes))).one()
     tagged = db.scalar(select(func.count(func.distinct(ItemTag.item_id))).with_hint(ItemTag, "FORCE INDEX (ix_item_tags_item)", dialect_name="mysql")) or 0
-    return {"total_items": total, "total_pages": pages, "total_bytes": size or 0, "pending_jobs": db.scalar(select(func.count(Job.id)).where(Job.status.in_(["queued", "running"]))) or 0, "untagged_items": total - tagged, "recent_items": [build_item_view(item) for item in recent], "source_counts": sources, "rating_counts": dict(db.execute(select(Item.rating, func.count(Item.id)).group_by(Item.rating)).all())}
+    return {"total_items": total, "total_pages": pages, "total_bytes": size or 0, "pending_jobs": db.scalar(select(func.count(Job.id)).where(Job.status.in_(["queued", "running"]))) or 0, "untagged_items": total - tagged, "recent_items": build_item_cards(db, recent), "source_counts": sources, "rating_counts": dict(db.execute(select(Item.rating, func.count(Item.id)).group_by(Item.rating)).all())}
 
 
 @api.get("/items")
-def list_items(q: str = Query("", max_length=512), type: str = "", source: str = "", tag: str = "", author: str = Query("", max_length=512), rating: str = "", downloaded: bool = False, favorite: bool = False, favorite_group: str = Query("", max_length=36), history: bool = False, page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=100), sort: str = "latest", db: Session = Depends(get_db)):
+def list_items(q: str = Query("", max_length=512), type: str = "", source: str = "", tag: str = "", tag_ids: str = Query("", max_length=739, description="逗号分隔的标签 ID，最多 20 个"), tag_mode: str = Query("all", pattern="^(all|any)$"), author: str = Query("", max_length=512), rating: str = "", downloaded: bool = False, favorite: bool = False, favorite_group: str = Query("", max_length=36), history: bool = False, page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=100), sort: str = "latest", db: Session = Depends(get_db)):
     query = select(Item)
     if favorite or favorite_group:
         from .models import FavoriteGroup, FavoriteGroupItem, ItemFavorite
@@ -194,12 +198,23 @@ def list_items(q: str = Query("", max_length=512), type: str = "", source: str =
             query = query.where(field == value)
     if tag:
         query = query.where(Item.item_tags.any(ItemTag.tag.has(or_(Tag.name == tag, Tag.id == tag))))
+    selected_tags = list(dict.fromkeys(value.strip() for value in tag_ids.split(",") if value.strip()))
+    if len(selected_tags) > 20 or any(len(value) > 36 for value in selected_tags):
+        raise HTTPException(422, "最多选择 20 个标签，每个标签 ID 不超过 36 个字符")
+    if selected_tags:
+        # EXISTS uses the item/tag index without duplicating books that have
+        # both imported and AI/manual assignments for the same tag.
+        if tag_mode == "any":
+            query = query.where(Item.item_tags.any(ItemTag.tag_id.in_(selected_tags)))
+        else:
+            for tag_id in selected_tags:
+                query = query.where(Item.item_tags.any(ItemTag.tag_id == tag_id))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     ordering = Item.title.asc() if sort == "title" else Item.created_at.asc() if sort == "oldest" else Item.created_at.desc()
     if history:
         ordering = ItemVisit.viewed_at.desc()
-    items = db.scalars(query.order_by(ordering, Item.id).offset((page - 1) * page_size).limit(page_size)).all()
-    return {"items": [build_item_view(item) for item in items], "total": total, "page": page, "page_size": page_size}
+    items = db.scalars(query.options(raiseload(Item.assets)).order_by(ordering, Item.id).offset((page - 1) * page_size).limit(page_size)).all()
+    return {"items": build_item_cards(db, items), "total": total, "page": page, "page_size": page_size}
 
 
 @api.get("/items/{item_id}")
@@ -322,7 +337,10 @@ def asset_text_sections(asset_id: str, db: Session = Depends(get_db)):
     asset, path = get_asset(asset_id, db)
     if not asset.mime_type.startswith("text/"):
         raise HTTPException(400, "仅文本文件支持章节阅读")
-    return {"sections": text_sections(path)}
+    images = {a.inline_key: {"asset_id": a.id, "url": f"/api/assets/{a.id}/content", "width": a.width, "height": a.height}
+              for a in db.scalars(select(Asset).where(Asset.item_id == asset.item_id, Asset.inline_key.is_not(None),
+                  Asset.status == "available", Asset.mime_type.startswith("image/")))}
+    return {"sections": text_sections(path, images)}
 
 
 @api.get("/assets/{asset_id}/thumbnail")
@@ -407,7 +425,9 @@ def update_progress(item_id: str, data: ProgressUpdate, db: Session = Depends(ge
 
 
 @api.get("/tags")
-def list_tags(q: str = Query("", max_length=191), source: str = "", limit: int | None = Query(None, ge=1, le=1000), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
+def list_tags(q: str = Query("", max_length=191), source: str = "", limit: int | None = Query(None, ge=1, le=1000), offset: int = Query(0, ge=0), suggest: bool = False, db: Session = Depends(get_db)):
+    if suggest:
+        limit = min(limit or 12, 20)
     links = select(ItemTag.tag_id, ItemTag.item_id)
     if source:
         links = links.join(Item, Item.id == ItemTag.item_id).where(Item.source == source)
@@ -426,7 +446,14 @@ def list_tags(q: str = Query("", max_length=191), source: str = "", limit: int |
     page = select(Tag.id, Tag.name, Tag.name_zh).where(eligible.is_not(None))
     if q.strip():
         page = page.where(name_filter)
-    selected = db.execute(page.order_by(Tag.name, Tag.id).offset(offset).limit(limit)).all()
+    ordering = [Tag.name, Tag.id]
+    if suggest and term:
+        ordering.insert(0, case(
+            (or_(func.lower(Tag.name) == q.strip().lower(), func.lower(Tag.name_zh) == q.strip().lower()), 0),
+            (or_(Tag.name.ilike(f"{term}%", escape="\\"), Tag.name_zh.ilike(f"{term}%", escape="\\")), 1),
+            else_=2,
+        ))
+    selected = db.execute(page.order_by(*ordering).offset(offset).limit(limit)).all()
     if not selected:
         return []
     # Count only the selected IDs, grouping by the compact identity rather than

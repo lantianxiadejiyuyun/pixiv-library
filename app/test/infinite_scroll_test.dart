@@ -230,8 +230,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester
-          .widget<ListView>(find.byType(ListView))
-          .childrenDelegate
+          .widget<SliverGrid>(find.byType(SliverGrid))
+          .delegate
           .estimatedChildCount,
       48,
     );
@@ -279,6 +279,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(api.calls.last['q'], 'comic');
       expect(api.calls.last['downloaded'], 'true');
+      // Submit closes the new suggestions panel before scrolling the results.
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
       bottom(tester);
       await tester.pumpAndSettle();
       expect(api.calls.last['page'], '2');

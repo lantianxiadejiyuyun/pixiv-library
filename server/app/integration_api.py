@@ -43,6 +43,7 @@ class SyncInput(BaseModel):
 class QueueSettingsPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     paused: bool | None = None
+    pause_reason: Literal["manual", "maintenance"] | None = None
     rate_limit_enabled: bool | None = Field(default=None, strict=True)
     concurrency: int | None = Field(default=None, strict=True, ge=1, le=queue_control.MAX_CONCURRENCY)
     min_interval_seconds: float | None = Field(default=None, ge=0, le=60, allow_inf_nan=False)
@@ -53,6 +54,7 @@ class QueueSettingsPatch(BaseModel):
 class LanePatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     paused: bool | None = Field(default=None, strict=True)
+    pause_reason: Literal["manual", "maintenance"] | None = None
     concurrency: int | None = Field(default=None, strict=True, ge=1, le=8)
 
 
@@ -85,6 +87,99 @@ class SubscriptionPatch(BaseModel):
     content_scope: Literal["images", "novels", "all"] | None = None
     account_id: str | None = None
     interval_minutes: int | None = Field(default=None, ge=30, le=10080)
+
+
+class TagTrackingInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    platform: Literal["pixiv", "picacg", "kemono"] = "pixiv"
+    tags: list[str] = Field(min_length=1, max_length=20)
+    auto_download: bool = True
+    content_scope: Literal["images", "novels", "all"] = "all"
+    interval_minutes: int = Field(default=360, ge=30, le=10080)
+
+
+class TagTrackingPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = None
+    auto_download: bool | None = None
+    content_scope: Literal["images", "novels", "all"] | None = None
+    interval_minutes: int | None = Field(default=None, ge=30, le=10080)
+
+
+@router.patch("/tag-tracking/{subscription_id}")
+def patch_tag_tracking(subscription_id: str, value: TagTrackingPatch, db=Depends(get_db)):
+    row = db.get(Subscription, subscription_id)
+    if not row or row.target_type != "tag":
+        raise HTTPException(404, "标签追踪不存在")
+    return patch_subscription(subscription_id, SubscriptionPatch(**value.model_dump(exclude_unset=True)), db)
+
+
+@router.delete("/tag-tracking/{subscription_id}")
+def delete_tag_tracking(subscription_id: str, db=Depends(get_db)):
+    row = db.get(Subscription, subscription_id)
+    if not row or row.target_type != "tag":
+        raise HTTPException(404, "标签追踪不存在")
+    return delete_subscription(subscription_id, db)
+
+
+@router.get("/tag-tracking")
+def tag_tracking(db=Depends(get_db)):
+    return {"items": [subscription_view(row) for row in db.scalars(select(Subscription).where(
+        Subscription.target_type == "tag").order_by(Subscription.created_at.desc()))]}
+
+
+def queue_tag_check(db, subscription):
+    active = db.scalar(select(Job).where(Job.kind == "source_sync", Job.status.in_(("queued", "running")),
+        Job.payload["subscription_id"].as_string() == subscription.id).with_for_update())
+    if active:
+        return active
+    job = Job(kind="source_sync", status="queued", payload={"platform": subscription.platform,
+        "subscription_id": subscription.id, "account_id": subscription.account_id})
+    db.add(job)
+    db.flush()
+    return job
+
+
+@router.post("/tag-tracking")
+def add_tag_tracking(value: TagTrackingInput, db=Depends(get_db)):
+    from .library import normalize_tags
+    try:
+        tags = normalize_tags(value.tags)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    if not tags:
+        raise HTTPException(400, "请填写至少一个标签")
+    queue_control.lock_control(db)
+    items, checks = [], []
+    for tag in tags:
+        row = db.scalar(select(Subscription).where(Subscription.platform == value.platform,
+            Subscription.target_type == "tag", Subscription.target == tag).order_by(Subscription.created_at).with_for_update())
+        if row is None:
+            row = Subscription(platform=value.platform, target_type="tag", target=tag, label=tag)
+            db.add(row)
+        row.enabled, row.auto_download = True, value.auto_download
+        row.content_scope = value.content_scope if value.platform == "pixiv" else "images"
+        row.interval_minutes = value.interval_minutes
+        db.flush()
+        checks.append(queue_tag_check(db, row).id)
+        items.append(subscription_view(row))
+    db.commit()
+    return {"items": items, "job_ids": checks}
+
+
+@router.post("/tag-tracking/{subscription_id}/check")
+def check_tag_tracking(subscription_id: str, db=Depends(get_db)):
+    queue_control.lock_control(db)
+    row = db.get(Subscription, subscription_id)
+    if not row or row.target_type != "tag":
+        raise HTTPException(404, "标签追踪不存在")
+    if not row.enabled:
+        raise HTTPException(409, "请先恢复标签追踪")
+    if not get_connector(row.platform).supports_subscriptions:
+        raise HTTPException(400, "该平台尚未支持标签追踪")
+    job = queue_tag_check(db, row)
+    db.commit()
+    return job_view(job)
 
 
 class AnalyzeInput(BaseModel):
@@ -238,8 +333,11 @@ def queue_status(db=Depends(get_db)):
               "blocked_by_master": control["paused"] and key in queue_control.COLLECTION_LANES,
               "counts": {status: lane_counts.get((key, status), 0) for status in ("queued", "running", "failed", "completed")}}
              for key, label in queue_control.LANES.items()]
+    runtime = runtime_status()
+    from .queue_diagnostics import explain_lanes
+    explain_lanes(db, row, lanes, runtime)
     return {"settings": control, "counts": {key: counts.get(key, 0) for key in ("queued", "running", "failed")},
-            "active": running[0] if running else None, "active_jobs": running, "lanes": lanes, "runtime": runtime_status()}
+            "active": running[0] if running else None, "active_jobs": running, "lanes": lanes, "runtime": runtime}
 
 
 @router.put("/queue/lanes/{lane}")

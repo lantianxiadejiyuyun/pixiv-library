@@ -4,9 +4,10 @@ import { api, post, errorMessage } from '../api'
 import type { Item } from '../types'
 import BookCard from './BookCard.vue'
 
-type Task = {id: string; status: string; error?: string; author_id?: string}
-type Profile = {remote_id: string; name: string; description: string; avatar_url?: string; can_read_private: boolean; download_settings?: {download_works:boolean;download_bookmarks:boolean;subscribed:boolean}}
-type Feed = {items: Item[]; total: number; complete: boolean; has_more: boolean; revision: number; unavailable: number; job: Task | null}
+type Task = {id: string; status: string; error?: string; author_id?: string; refresh_paused?: boolean}
+type Profile = {remote_id: string; name: string; description: string; avatar_url?: string; can_read_private: boolean; synced_at?: string; download_settings?: {download_works:boolean;download_bookmarks:boolean;subscribed:boolean}}
+type Feed = {items: Item[]; total: number; complete: boolean; has_more: boolean; revision: number; unavailable: number; job: Task | null; local_only?: boolean; refresh_paused?: boolean}
+type Home = {remote_id: string; section: string; category: string; restrict: string; job: Task | null; profile?: Profile | null; feed?: Feed | null; refresh_paused?: boolean}
 const props = defineProps<{seed?: {key: number; target: string; query?: string}; blurAdult: boolean}>()
 const emit = defineEmits<{open: [id: string]}>()
 const query = ref(''), input = ref(''), error = ref(''), notice = ref('')
@@ -15,6 +16,7 @@ const authorPage = ref(1), authorTotal = ref(0), page = ref(1)
 const profile = ref<Profile | null>(null), authorId = ref(''), feed = ref<Feed | null>(null)
 const section = ref('works'), category = ref('illustration'), privacy = ref('public')
 const pending = ref(false), opening = ref(false)
+const refreshPaused = ref(false)
 const savingDownloads = ref(false)
 async function saveDownloads(key:'download_works'|'download_bookmarks') {
   const current=profile.value,ident=authorId.value,version=profileRequest
@@ -48,13 +50,26 @@ async function watchProfile(id: string, version: number) {
     const task = await api<Task>(`/pixiv/tasks/${id}`)
     if (!alive || version !== profileRequest) return
     if (['queued', 'running'].includes(task.status)) {
+      if (task.refresh_paused) { refreshPaused.value = true; opening.value = false; notice.value = '联网更新已暂停，当前显示已收录内容。'; return }
       notice.value = '正在服务器队列中读取作者资料；采集暂停时，请在任务页恢复。'
       profileTimer = setTimeout(() => watchProfile(id, version), 3000)
     } else if (task.status === 'completed' && task.author_id) {
       authorId.value = task.author_id; opening.value = false; notice.value = ''
-      await readProfile(); if (!alive || version !== profileRequest) return; await readFeed(true)
+      await Promise.all([readProfile(), readFeed(true)])
     } else { opening.value = false; error.value = task.error || '作者资料任务未完成' }
   } catch (failure) { if (alive && version === profileRequest) { opening.value = false; error.value = errorMessage(failure) } }
+}
+async function refreshProfile(target = authorId.value || 'me') {
+  const version = profileRequest
+  clearTimeout(profileTimer); error.value = ''; opening.value = true
+  try {
+    const result = await post<Home>('/pixiv/authors/open', {url_or_id: target})
+    if (!alive || version !== profileRequest) return
+    refreshPaused.value = !!result.refresh_paused
+    if (result.refresh_paused) notice.value = '联网更新已暂停，当前显示已收录内容。'
+    else if (result.job) { notice.value = '正在后台更新作者资料。'; void watchProfile(result.job.id, version) }
+  } catch (failure) { if (alive && version === profileRequest) error.value = errorMessage(failure) }
+  finally { if (alive && version === profileRequest) opening.value = false }
 }
 async function open(target: string, initialSection?: string) {
   if (!target.trim()) return
@@ -62,19 +77,39 @@ async function open(target: string, initialSection?: string) {
   request++; clearTimeout(profileTimer); clearTimeout(feedTimer)
   error.value = ''; notice.value = ''; profile.value = null; feed.value = null; authorId.value = ''; pending.value = false; opening.value = true; page.value = 1
   try {
-    const result = await post<{remote_id: string; section: string; category: string; restrict: string; job: Task}>('/pixiv/authors/open', {url_or_id: target.trim()})
+    const result = await post<Home>('/pixiv/authors/open', {url_or_id: target.trim(), prefer_cached: true, section: initialSection})
     if (!alive || version !== profileRequest) return
     section.value = initialSection || result.section; category.value = result.category; privacy.value = result.restrict
-    if (result.remote_id !== 'me') { authorId.value = result.remote_id; await readProfile(); if (!alive || version !== profileRequest) return; await readFeed(privacy.value === 'public') }
-    if (alive && version === profileRequest) watchProfile(result.job.id, version)
+    refreshPaused.value = !!result.refresh_paused
+    if (result.profile && result.feed) {
+      authorId.value = result.remote_id; profile.value = result.profile; feed.value = result.feed
+      opening.value = false
+      pending.value = !refreshPaused.value && !!result.feed.job && ['queued', 'running'].includes(result.feed.job.status)
+      if (refreshPaused.value) notice.value = '联网更新已暂停，当前显示已收录内容。'
+      else {
+        if (!result.profile.synced_at) void refreshProfile()
+        if (pending.value && result.feed.job) void watchFeed(result.feed.job.id, request)
+        else if (!result.feed.revision && !result.feed.job) void queue()
+      }
+      return
+    }
+    if (result.remote_id !== 'me') { authorId.value = result.remote_id; await Promise.all([readProfile(), readFeed(privacy.value === 'public')]) }
+    if (!alive || version !== profileRequest) return
+    if (refreshPaused.value) notice.value = '联网更新已暂停，当前显示已收录内容。'
+    else if (result.job) void watchProfile(result.job.id, version)
+    else void refreshProfile(target.trim())
   } catch (failure) { if (alive && version === profileRequest) { opening.value = false; error.value = errorMessage(failure) } }
+  finally { if (alive && version === profileRequest) opening.value = false }
 }
 async function readFeed(auto = false) {
   if (!authorId.value) return
   const version = ++request
   const data = await api<Feed>(`/pixiv/authors/${authorId.value}/feed?${new URLSearchParams({...filters(), page: String(page.value)})}`)
   if (!alive || version !== request) return
-  feed.value = data; pending.value = !!data.job && ['queued', 'running'].includes(data.job.status)
+  feed.value = data
+  refreshPaused.value = data.refresh_paused ?? refreshPaused.value
+  pending.value = !refreshPaused.value && !!data.job && ['queued', 'running'].includes(data.job.status)
+  if (refreshPaused.value) { notice.value = '联网更新已暂停，当前显示已收录内容。'; return }
   if (pending.value && data.job) { clearTimeout(feedTimer); watchFeed(data.job.id, version) }
   else if (auto && data.revision === 0 && !data.job) await queue()
   else if (data.job?.status === 'failed') error.value = data.job.error || '目录读取失败'
@@ -84,6 +119,7 @@ async function watchFeed(id: string, version: number, nextPage?: number) {
     const task = await api<Task>(`/pixiv/tasks/${id}`)
     if (!alive || version !== request) return
     if (['queued', 'running'].includes(task.status)) {
+      if (task.refresh_paused) { refreshPaused.value = true; pending.value = false; notice.value = '联网更新已暂停，当前显示已收录内容。'; return }
       pending.value = true
       feedTimer = setTimeout(() => watchFeed(id, version, nextPage), 3000)
     } else {
@@ -100,6 +136,7 @@ async function queue(more = false) {
   try {
     const result = await post<{job: Task | null}>(`/pixiv/authors/${authorId.value}/feed`, {...filters(), more})
     if (!alive || version !== request) return
+    if (refreshPaused.value) { pending.value = false; notice.value = '已加入更新队列，联网读取目前暂停。'; return }
     if (result.job) await watchFeed(result.job.id, version, more ? Math.floor((feed.value?.total || 0) / 24) + 1 : 1)
     else { pending.value = false; await readFeed() }
   } catch (failure) { if (alive && version === request) { pending.value = false; error.value = errorMessage(failure) } }
@@ -127,11 +164,11 @@ onBeforeUnmount(() => { alive = false; request++; profileRequest++; clearTimeout
     <div v-if="profile" class="author-header"><img v-if="profile.avatar_url" :src="profile.avatar_url" alt="作者头像" /><div><h2>{{ profile.name }}</h2><p class="muted">Pixiv ID {{ profile.remote_id }}</p></div></div>
     <p v-if="profile?.description" class="author-description">{{ profile.description }}</p>
     <div v-if="profile?.download_settings" class="author-actions"><label><input type="checkbox" :checked="profile.download_settings.download_works" :disabled="savingDownloads" @change="saveDownloads('download_works')" />下载作者发布的作品</label><label><input type="checkbox" :checked="profile.download_settings.download_bookmarks" :disabled="savingDownloads" @change="saveDownloads('download_bookmarks')" />下载作者公开收藏</label><small class="muted">关闭时仍获取封面和资料；已排队任务不自动取消。</small></div>
-    <div class="author-actions"><button class="button small" :class="section === 'works' ? 'primary' : 'secondary'" @click="section = 'works'; change()">作者作品</button><button class="button small" :class="section === 'bookmarks' ? 'primary' : 'secondary'" @click="section = 'bookmarks'; change()">收藏</button></div>
+    <div class="author-actions"><button class="button small" :class="section === 'works' ? 'primary' : 'secondary'" @click="section = 'works'; change()">作者作品</button><button class="button small" :class="section === 'bookmarks' ? 'primary' : 'secondary'" @click="section = 'bookmarks'; change()">收藏</button><button class="button secondary small" :disabled="opening" @click="refreshProfile()">刷新作者资料</button></div>
     <div class="author-actions"><button v-for="(label, key) in {illustration: '插画', manga: '漫画', novel: '小说'}" :key="key" class="button small" :class="category === key ? 'primary' : 'secondary'" @click="category = key; change()">{{ label }}</button>
       <select v-if="section === 'bookmarks' && profile?.can_read_private" v-model="privacy" aria-label="收藏可见性" @change="change"><option value="public">公开收藏</option><option value="private">本人私密收藏</option></select>
       <button class="button secondary small" :disabled="pending" @click="queue()">重新读取目录</button></div>
-    <p class="field-hint">已读取 {{ feed?.total || 0 }} 部 · {{ feed?.complete ? '目录已完整读取' : '按页读取，未标记完整' }}。只为封面排队，正文需单独下载。</p>
+    <p class="field-hint">{{ feed?.local_only ? '本地已收录' : '已读取' }} {{ feed?.total || 0 }} 部 · {{ feed?.complete ? '目录已完整读取' : '远端目录尚未完整读取' }}</p>
     <p v-if="pending" class="field-hint">正在服务器队列中读取；采集暂停时，请在任务页恢复。</p>
     <p v-if="feed?.unavailable" class="field-hint">含不可访问或暂不支持的条目，旧目录会保留。</p>
     <div v-if="feed?.items.length" class="book-grid"><BookCard v-for="item in feed.items" :key="item.id" :item="item" :blur-adult="blurAdult" @open="emit('open', item.id)" /></div>

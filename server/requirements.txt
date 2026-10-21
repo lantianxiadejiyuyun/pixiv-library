@@ -12,3 +12,4 @@ jmcomic>=2.6,<3
 alembic>=1.14,<2
 pytest>=8,<10
 PyYAML>=6,<7
+psutil>=7.2,<8

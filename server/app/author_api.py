@@ -7,13 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, func, or_, select, union_all
+from sqlalchemy.orm import raiseload
 
 from .auth import require_auth
 from .database import get_db
 from .integrations import get_connector
 from .integrations.base import ConnectorError
-from .library import build_item_view, iso, save_preview_cover
-from .models import AuthorFeed, AuthorFeedEntry, AuthorProfile, Item, Job, SourceAccount, Subscription, utcnow
+from .library import build_item_cards, iso, save_preview_cover
+from .models import AuthorFeed, AuthorFeedEntry, AuthorProfile, Item, Job, QueueControl, SourceAccount, Subscription, utcnow
 from .storage import resolve_asset_path
 from . import queue_control
 
@@ -25,6 +26,9 @@ class OpenInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     url_or_id: str = Field(min_length=1, max_length=2048)
     account_id: str | None = Field(default=None, max_length=36)
+    prefer_cached: bool = False
+    section: Literal["works", "bookmarks"] | None = None
+    category: Literal["illustration", "manga", "novel"] | None = None
 
 
 class FeedInput(BaseModel):
@@ -81,10 +85,13 @@ def enqueue(db, kind, payload, identity):
 
 @router.get("/pixiv/authors")
 def list_authors(q: str = Query("", max_length=200), page: int = Query(1, ge=1), db=Depends(get_db)):
-    profiles = select(AuthorProfile.remote_id.label("remote_id"), AuthorProfile.name.label("name"))
-    follows = select(Subscription.target.label("remote_id"), func.max(Subscription.label).label("name")).where(
-        Subscription.platform == "pixiv", Subscription.target_type == "author",
-        ~select(AuthorProfile.remote_id).where(AuthorProfile.remote_id == Subscription.target).exists()).group_by(Subscription.target)
+    labels = select(Subscription.target.label("remote_id"), func.max(Subscription.label).label("name")).where(
+        Subscription.platform == "pixiv", Subscription.target_type == "author").group_by(Subscription.target).subquery()
+    profiles = select(AuthorProfile.remote_id.label("remote_id"),
+        func.coalesce(func.nullif(AuthorProfile.name, ""), labels.c.name, "").label("name"))
+    profiles = profiles.outerjoin(labels, labels.c.remote_id == AuthorProfile.remote_id)
+    follows = select(labels.c.remote_id, labels.c.name).where(
+        ~select(AuthorProfile.remote_id).where(AuthorProfile.remote_id == labels.c.remote_id).exists())
     catalog = union_all(profiles, follows).subquery()
     query = select(catalog)
     if q.strip():
@@ -101,6 +108,33 @@ def open_author(value: OpenInput, db=Depends(get_db)):
         target = connector.normalize_author(value.url_or_id)
     except ConnectorError as exc:
         raise HTTPException(400, str(exc)) from None
+    if value.section is not None:
+        target["section"] = value.section
+    if value.category is not None:
+        target["category"] = value.category
+    if value.prefer_cached:
+        selected = account(db, value.account_id)
+        if target["remote_id"] == "me" and selected:
+            # Only a profile verified for this exact account can resolve "me".
+            owned = [ident for ident, stats in db.execute(select(AuthorProfile.remote_id, AuthorProfile.statistics)
+                .where(AuthorProfile.synced_at.is_not(None))) if selected.id in (stats or {}).get("_owned_accounts", [])]
+            if len(owned) == 1:
+                target["remote_id"] = owned[0]
+        if target["remote_id"] == "me":
+            return {**target, "cached": False, "profile": None, "feed": None, "job": None,
+                    "refresh_paused": author_refresh_paused(db)}
+        profile = author_detail(target["remote_id"], account_id=value.account_id, db=db)
+        counts = profile["local_counts"]
+        if (value.category is None and target["section"] == "works" and target["category"] == "illustration"
+                and not counts.get("illustration")):
+            for category in ("manga", "novel"):
+                if counts.get(category):
+                    target["category"] = category
+                    break
+        feed = get_feed(target["remote_id"], section=target["section"], category=target["category"],
+                        restrict=target["restrict"], account_id=value.account_id, page=1, db=db)
+        return {**target, "cached": profile["cached"], "profile": profile, "feed": feed, "job": None,
+                "refresh_paused": profile["refresh_paused"]}
     queue_control.lock_control(db)
     selected = account(db, value.account_id, required=True)
     from .jobs import account_credentials
@@ -108,7 +142,7 @@ def open_author(value: OpenInput, db=Depends(get_db)):
     connector.validate_credentials()
     job = enqueue(db, "author_profile", {"target": target["remote_id"], "account_id": selected.id}, selected.id + ":" + target["remote_id"])
     db.commit()
-    return {**target, "job": public_job(job)}
+    return {**target, "job": public_job(job), "refresh_paused": author_refresh_paused(db)}
 
 
 @router.get("/pixiv/tasks/{job_id}")
@@ -116,7 +150,7 @@ def task_status(job_id: str, db=Depends(get_db)):
     job = db.get(Job, job_id)
     if job is None or job.kind not in KINDS:
         raise HTTPException(404, "作者任务不存在")
-    return public_job(job)
+    return {**public_job(job), "refresh_paused": author_refresh_paused(db)}
 
 
 @router.get("/pixiv/authors/{author_id}")
@@ -125,13 +159,27 @@ def author_detail(author_id: str, account_id: str | None = None, db=Depends(get_
     profile = db.get(AuthorProfile, ident)
     selected = account(db, account_id)
     stats = profile.statistics or {} if profile else {}
-    return {"remote_id": ident, "name": profile.name if profile and profile.name else "Pixiv 作者 " + ident,
+    counts = dict(db.execute(select(Item.type, func.count()).where(Item.source == "pixiv", Item.author_source_id == ident)
+                            .group_by(Item.type)).all())
+    name = profile.name if profile and profile.name else db.scalar(select(Subscription.label).where(
+        Subscription.platform == "pixiv", Subscription.target_type == "author", Subscription.target == ident,
+        Subscription.label != "").order_by(Subscription.created_at, Subscription.id).limit(1))
+    if not name and counts:
+        name = db.scalar(select(Item.author).where(Item.source == "pixiv", Item.author_source_id == ident,
+            Item.author != "").order_by(Item.created_at.desc(), Item.id).limit(1))
+    return {"remote_id": ident, "name": name or "Pixiv 作者 " + ident,
             "description": profile.description if profile else "", "source_url": "https://www.pixiv.net/users/" + ident,
             "avatar_url": f"/api/pixiv/authors/{ident}/avatar" if profile and profile.avatar else None,
             "synced_at": iso(profile.synced_at) if profile else None,
             "statistics": {key: value for key, value in stats.items() if not key.startswith("_")},
             "can_read_private": bool(selected and selected.id in stats.get("_owned_accounts", [])),
-            "download_settings": author_download_settings(db, ident)}
+            "download_settings": author_download_settings(db, ident), "local_counts": counts,
+            "cached": bool(name or counts or profile and profile.synced_at), "refresh_paused": author_refresh_paused(db)}
+
+
+def author_refresh_paused(db):
+    control = db.get(QueueControl, 1)
+    return bool(control and (control.paused or queue_control.lane_settings(control)["checks"]["paused"]))
 
 
 def author_download_settings(db, ident):
@@ -186,17 +234,27 @@ def find_feed(db, ident, value):
 @router.get("/pixiv/authors/{author_id}/feed")
 def get_feed(author_id: str, section: Literal["works", "bookmarks"] = "works", category: Literal["illustration", "manga", "novel"] = "illustration",
              restrict: Literal["public", "private"] = "public", account_id: str | None = None, page: int = Query(1, ge=1), db=Depends(get_db)):
-    feed = find_feed(db, checked_id(author_id), FeedInput(section=section, category=category, restrict=restrict, account_id=account_id))
-    if feed is None:
-        return {"items": [], "total": 0, "page": page, "has_more": True, "complete": False, "revision": 0, "unavailable": 0, "job": None}
-    query = select(Item).join(AuthorFeedEntry, AuthorFeedEntry.item_id == Item.id).where(AuthorFeedEntry.feed_id == feed.id)
-    total = db.scalar(select(func.count()).select_from(query.subquery()))
-    items = db.scalars(query.order_by(AuthorFeedEntry.generation.desc(), AuthorFeedEntry.position, Item.id).offset((page - 1) * 24).limit(24)).all()
+    ident = checked_id(author_id)
+    feed = find_feed(db, ident, FeedInput(section=section, category=category, restrict=restrict, account_id=account_id))
     job = db.scalar(select(Job).where(Job.kind == "author_feed", Job.payload["feed_id"].as_string() == feed.id)
-        .order_by(Job.status.in_(("queued", "running")).desc(), Job.updated_at.desc(), Job.id.desc()).limit(1))
-    return {"items": [build_item_view(item) for item in items], "total": total, "page": page,
+        .order_by(Job.status.in_(("queued", "running")).desc(), Job.updated_at.desc(), Job.id.desc()).limit(1)) if feed else None
+    if feed is None or feed.generation == 0:
+        items, total = [], 0
+        if section == "works" and restrict == "public":
+            query = select(Item).where(Item.source == "pixiv", Item.author_source_id == ident, Item.type == category)
+            total = db.scalar(select(func.count()).select_from(query.subquery()))
+            items = db.scalars(query.options(raiseload(Item.assets)).order_by(Item.created_at.desc(), Item.id)
+                               .offset((page - 1) * 24).limit(24)).all()
+        return {"items": build_item_cards(db, items), "total": total, "page": page, "has_more": True,
+                "complete": False, "revision": 0, "generation": 0, "unavailable": feed.unavailable if feed else 0,
+                "job": public_job(job) if job else None, "local_only": True, "refresh_paused": author_refresh_paused(db)}
+    query = select(Item).join(AuthorFeedEntry, AuthorFeedEntry.item_id == Item.id).where(AuthorFeedEntry.feed_id == feed.id)
+    total = db.scalar(select(func.count()).select_from(AuthorFeedEntry).where(AuthorFeedEntry.feed_id == feed.id))
+    items = db.scalars(query.options(raiseload(Item.assets)).order_by(AuthorFeedEntry.generation.desc(), AuthorFeedEntry.position, Item.id).offset((page - 1) * 24).limit(24)).all()
+    return {"items": build_item_cards(db, items), "total": total, "page": page,
             "has_more": feed.next_cursor is not None or feed.generation == 0, "complete": feed.complete,
-            "revision": feed.revision, "generation": feed.generation, "unavailable": feed.unavailable, "job": public_job(job) if job else None}
+            "revision": feed.revision, "generation": feed.generation, "unavailable": feed.unavailable, "job": public_job(job) if job else None,
+            "local_only": False, "refresh_paused": author_refresh_paused(db)}
 
 
 @router.post("/pixiv/authors/{author_id}/feed")

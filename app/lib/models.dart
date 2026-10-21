@@ -1,4 +1,5 @@
 import 'publication_time.dart';
+import 'novel_blocks.dart';
 
 class ReadingPosition {
   final int page, section;
@@ -19,9 +20,11 @@ class ReadingPosition {
 
 class LibraryAsset {
   final String id, mimeType, name;
+  final String? inlineKey;
   final int position;
   LibraryAsset.fromJson(Map<String, dynamic> json)
     : id = json['id'] as String,
+      inlineKey = json['inline_key'] as String?,
       mimeType = json['mime_type'] as String? ?? '',
       name = json['original_name'] as String? ?? '',
       position = (json['position'] as num?)?.toInt() ?? 0;
@@ -37,10 +40,14 @@ class SeriesLink {
 class TextChapter {
   final int index;
   final String title, text;
+  final List<NovelBlock>? blocks;
   TextChapter.fromJson(Map<String, dynamic> json)
     : index = (json['index'] as num).toInt(),
       title = json['title'] as String? ?? '',
-      text = json['text'] as String? ?? '';
+      text = json['text'] as String? ?? '',
+      blocks = (json['blocks'] as List?)
+          ?.map((v) => NovelBlock.fromJson(v as Map<String, dynamic>))
+          .toList(growable: false);
 }
 
 class LibraryTag {
@@ -69,6 +76,9 @@ class LibraryItem {
   final int? sourceBookmarkCount;
   final List<String> favoriteGroupIds;
   final List<LibraryAsset> assets;
+  late final List<LibraryAsset> readingAssets = assets
+      .where((asset) => asset.inlineKey == null)
+      .toList(growable: false);
   final List<String> tags;
   final List<LibraryTag> tagEntries;
   final ReadingPosition progress;

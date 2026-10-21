@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'api.dart';
 import 'novel_reader_body.dart';
+import 'novel_blocks.dart';
 import 'pixiv_direct_api.dart';
 import 'reader_preferences.dart';
 
@@ -598,6 +599,7 @@ class PixivOnlineWorkScreen extends StatefulWidget {
 class _PixivOnlineWorkScreenState extends State<PixivOnlineWorkScreen> {
   Map<String, dynamic>? _work;
   String? _failure, _text;
+  NovelDocument? _document;
   bool _loading = true;
   final _scroll = ScrollController();
   final _preferences = const ReaderPreferences();
@@ -625,11 +627,14 @@ class _PixivOnlineWorkScreenState extends State<PixivOnlineWorkScreen> {
     });
     try {
       final work = await widget.api.detail(widget.id, novel: widget.novel);
-      final text = widget.novel ? await widget.api.novelText(widget.id) : null;
+      final document = widget.novel
+          ? await widget.api.novelDocument(widget.id)
+          : null;
       if (mounted) {
         setState(() {
           _work = work;
-          _text = text;
+          _document = document;
+          _text = document?.text;
           _loading = false;
         });
       }
@@ -705,6 +710,14 @@ class _PixivOnlineWorkScreenState extends State<PixivOnlineWorkScreen> {
           ? SelectionArea(
               child: NovelReaderBody(
                 text: _text!,
+                blocks: _document?.blocks,
+                imageBuilder: (image) => image.url == null
+                    ? const Center(child: Text('插图不可用或无访问权限'))
+                    : PixivDirectImage(
+                        api: widget.api,
+                        url: image.url!,
+                        fit: BoxFit.contain,
+                      ),
                 title: '${work['title']}',
                 fontSize: _font,
                 restoreOffset: 0,

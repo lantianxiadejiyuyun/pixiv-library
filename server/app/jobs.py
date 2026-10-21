@@ -371,6 +371,29 @@ def _import_pixiv(db, payload, report, guard, job_id):
     metadata_label = pixiv_account_label(db, payload) if split else None
     ident = content.normalize_id(payload["remote_id"])
     existing = db.scalar(select(Item).where(Item.source == "pixiv", Item.source_id == ident))
+    if payload.get("novel_images_only"):
+        if existing is None or existing.id != payload.get("item_id") or existing.type != "novel":
+            return {"skipped": True, "message": "小说已删除，插图补全已跳过"}
+        from .storage import resolve_asset_path
+        from .novel_text import MAX_TEXT_BYTES
+        texts = [asset for asset in existing.assets if asset.mime_type.startswith("text/") and asset.size_bytes <= MAX_TEXT_BYTES]
+        if len(texts) != 1:
+            raise ConnectorError("插图补全需要一份有效的小说正文")
+        with resolve_asset_path(texts[0].relative_path).open("rb") as stream:
+            raw = stream.read(MAX_TEXT_BYTES + 1)
+        if len(raw) > MAX_TEXT_BYTES:
+            raise ConnectorError("小说正文超过解析限制")
+        text = raw.decode("utf-8-sig")
+        existing_keys = {asset.inline_key for asset in existing.assets if asset.inline_key and asset.status == "available"}
+        item_id = existing.id
+        db.rollback()
+        with pixiv_stage(content_label):
+            body = content.fetch_novel_images(ident, text, checkpoint=report, existing_keys=existing_keys)
+        db.rollback()
+        queue_control.lock_control(db)
+        from .library import append_novel_images
+        added = append_novel_images(db, item_id, body.files, body.inline_images, before_commit=guard)
+        return {"item_id": item_id, "illustrations_added": added, "message": "正文插图已补全，原文与阅读进度已保留"}
     if existing and existing.assets:
         return {"item_id": existing.id, "existing": True, "metadata_only": False, "content_state": "ready"}
     if payload.get("item_id") and (existing is None or existing.id != payload["item_id"]):
@@ -415,7 +438,7 @@ def _import_pixiv(db, payload, report, guard, job_id):
             session.execute(update(Item).where(Item.id == item.id, Item.rating_origin != "manual").values(rating=work.rating, rating_origin="source"))
     item = import_files(db, body.files, title=work.title, item_type=work.item_type, source="pixiv",
         source_id=ident, source_url=work.source_url, author=work.author, description=work.description,
-        language=work.language, tags=work.tags, before_commit=before_commit)
+        language=work.language, tags=work.tags, before_commit=before_commit, inline_images=body.inline_images)
     return {"item_id": item.id, "metadata_only": False, "content_state": "ready",
             "content_job_id": job_id, "message": "Pixiv 详情与完整正文已在同一任务中保存，可阅读"}
 
@@ -467,7 +490,7 @@ def _import_content(db, payload, report, guard):
         item = import_files(db, work.files, title=work.title, item_type=work.item_type, source=platform,
             source_id=work.remote_id, source_url=work.source_url, author=work.author,
             description=work.description, language=work.language, tags=None if split_accounts else work.tags,
-            before_commit=source_commit, checkpoint=report)
+            before_commit=source_commit, checkpoint=report, inline_images=work.inline_images)
     return {"item_id": item.id, "metadata_only": work.metadata_only,
             "message": "仅保存元数据，尚未下载离线文件" if work.metadata_only else
                        ("画廊全部页面图片已保存（站点展示清晰度）" if platform == "ehentai" else "原文件已保存，可离线阅读")}

@@ -18,6 +18,12 @@ GROUPS = {
 }
 
 TITLES = {
+    ("GET", "/server/performance"): "服务器性能面板",
+    ("GET", "/tag-tracking"): "标签追踪列表",
+    ("POST", "/tag-tracking"): "添加标签追踪与下载",
+    ("PATCH", "/tag-tracking/{subscription_id}"): "设置标签追踪与自动下载",
+    ("DELETE", "/tag-tracking/{subscription_id}"): "取消标签追踪",
+    ("POST", "/tag-tracking/{subscription_id}/check"): "立即检查标签更新",
     ("GET", "/pixiv/follow-download-settings"): "关注作者作品自动下载设置",
     ("PUT", "/pixiv/follow-download-settings"): "设置关注作者作品自动下载",
     ("GET", "/pixiv/collection-settings"): "主账号收藏自动下载设置",
@@ -136,14 +142,19 @@ platform=平台|account_id=平台账号|main_account_id=检索主账号|content_
 """.strip().split("|"))
 
 
+LABELS.update({"pause_reason": "暂停原因", "diagnostic": "运行诊断", "reasons": "原因", "changed_at": "操作时间", "resume_at": "预计恢复时间"})
+
+
 def _group(path):
+    if path.startswith('/server/performance'):
+        return 'overview'
     if path.startswith(("/network",)):
         return "network"
     if path.startswith(("/sources", "/platform-endpoints", "/pixiv/collection-settings", "/pixiv/follow-download-settings", "/pixiv/bookmarks")):
         return "sources"
     if path.startswith(("/jobs", "/queue")):
         return "queue"
-    if path.startswith(("/subscriptions", "/pixiv/watchlist")):
+    if path.startswith(("/subscriptions", "/tag-tracking", "/pixiv/watchlist")):
         return "subscriptions"
     if path.startswith(("/ai", "/translation")):
         return "ai"

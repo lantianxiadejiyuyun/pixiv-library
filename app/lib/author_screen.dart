@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api.dart';
-import 'api_image.dart';
+import 'author_detail_view.dart';
 import 'models.dart';
-import 'author_download_controls.dart';
 
 String _failure(Object error) => error is ApiFailure && error.status == 409
     ? '请先在网页「内容来源」登录 Pixiv 账号。'
@@ -503,237 +502,28 @@ class _AuthorScreenState extends State<AuthorScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final items = (_feed?['items'] as List? ?? [])
-        .map((v) => LibraryItem.fromJson(v as Map<String, dynamic>))
-        .toList();
-    final total = (_feed?['total'] as num? ?? 0).toInt();
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _profile?['name'] as String? ?? 'Pixiv 作者主页',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          IconButton(
-            tooltip: '刷新作者资料',
-            onPressed: _loading ? null : _start,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_profile != null)
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 52,
-                        height: 52,
-                        child: ClipOval(
-                          child: _profile!['avatar_url'] == null
-                              ? const CircleAvatar(
-                                  child: Icon(Icons.person_outline),
-                                )
-                              : ApiImage(
-                                  api: widget.api,
-                                  path: _profile!['avatar_url'] as String,
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _profile!['name'] as String,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            Text(
-                              'Pixiv ID $_id',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                if ((_profile?['description'] as String? ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _profile!['description'] as String,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                if (_id != null && _profile?['download_settings'] is Map)
-                  AuthorDownloadControls(
-                    api: widget.api,
-                    authorId: _id!,
-                    initial: Map<String, dynamic>.from(
-                      _profile!['download_settings'] as Map,
-                    ),
-                  ),
-                const SizedBox(height: 10),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'works', label: Text('作者作品')),
-                    ButtonSegment(value: 'bookmarks', label: Text('收藏')),
-                  ],
-                  selected: {_section},
-                  onSelectionChanged: (v) => _choose(section: v.first),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final entry in {
-                      'illustration': '插画',
-                      'manga': '漫画',
-                      'novel': '小说',
-                    }.entries)
-                      ChoiceChip(
-                        label: Text(entry.value),
-                        selected: _category == entry.key,
-                        onSelected: (_) => _choose(category: entry.key),
-                      ),
-                    if (_section == 'bookmarks' &&
-                        _profile?['can_read_private'] == true)
-                      ChoiceChip(
-                        label: const Text('私密收藏'),
-                        selected: _restrict == 'private',
-                        onSelected: (v) =>
-                            _choose(restrict: v ? 'private' : 'public'),
-                      ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '已读取 $total 部${_feed?['complete'] == true ? ' · 目录已完整读取' : ''}',
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _id == null || _pending || _loading
-                          ? null
-                          : () => _queueFeed(),
-                      child: const Text('重新读取目录'),
-                    ),
-                  ],
-                ),
-                if (_pending || ['queued', 'running'].contains(_profileStatus))
-                  const Text(
-                    '正在服务器队列中读取；采集暂停时，请在网页任务页恢复。',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                if ((_feed?['unavailable'] as num? ?? 0) > 0)
-                  const Text(
-                    '含不可访问或暂不支持的条目，目录可能不完整。',
-                    style: TextStyle(fontSize: 13),
-                  ),
-              ],
-            ),
-          ),
-          if (_loading) const LinearProgressIndicator(),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          Expanded(
-            child: items.isEmpty
-                ? const Center(child: Text('目录尚无可显示内容'))
-                : NotificationListener<ScrollNotification>(
-                    onNotification: (event) {
-                      if (event is ScrollUpdateNotification &&
-                          event.metrics.extentAfter < 300 &&
-                          _error == null) {
-                        _loadMoreFeed();
-                      }
-                      return false;
-                    },
-                    child: RefreshIndicator(
-                      onRefresh: _refreshFeed,
-                      child: ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount:
-                            items.length +
-                            ((_page * 24 < total ||
-                                    _feed?['has_more'] == true ||
-                                    _pending ||
-                                    _readingFeed)
-                                ? 1
-                                : 0),
-                        itemBuilder: (context, index) {
-                          if (index == items.length) {
-                            return Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: _pending || _readingFeed
-                                  ? const Center(
-                                      child: SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    )
-                                  : Center(
-                                      child: TextButton(
-                                        onPressed: _loading
-                                            ? null
-                                            : _loadMoreFeed,
-                                        child: Text(
-                                          _error != null ? '加载失败，重试' : '加载更多',
-                                        ),
-                                      ),
-                                    ),
-                            );
-                          }
-                          final item = items[index];
-                          return ListTile(
-                            leading: SizedBox(
-                              width: 44,
-                              height: 58,
-                              child: item.coverUrl == null
-                                  ? const Icon(Icons.menu_book_outlined)
-                                  : ApiImage(
-                                      api: widget.api,
-                                      path: item.coverUrl!,
-                                    ),
-                            ),
-                            title: Text(
-                              item.displayTitle,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              '${item.author} · ${item.readable ? '可阅读' : '正文未下载'}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () => widget.onOpenItem(item.id),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AuthorDetailView(
+    api: widget.api,
+    authorId: _id,
+    profile: _profile,
+    feed: _feed,
+    items: (_feed?['items'] as List? ?? [])
+        .map((value) => LibraryItem.fromJson(value as Map<String, dynamic>))
+        .toList(),
+    section: _section,
+    category: _category,
+    restrict: _restrict,
+    page: _page,
+    loading: _loading,
+    readingFeed: _readingFeed,
+    pending: _pending,
+    profilePending: ['queued', 'running'].contains(_profileStatus),
+    error: _error,
+    onRefreshProfile: _start,
+    onQueueFeed: () => _queueFeed(),
+    onRefreshFeed: _refreshFeed,
+    onLoadMore: _loadMoreFeed,
+    onOpenItem: widget.onOpenItem,
+    onChoose: _choose,
+  );
 }

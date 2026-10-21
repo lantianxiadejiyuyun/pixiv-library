@@ -6,6 +6,7 @@ import 'api_image.dart';
 import 'models.dart';
 import 'reader_screen.dart';
 import 'tag_browser_screen.dart';
+import 'tag_tracking_screen.dart';
 import 'author_screen.dart';
 import 'characters_screen.dart';
 import 'favorites_screen.dart';
@@ -15,6 +16,7 @@ import 'source_labels.dart';
 import 'admin_screen.dart';
 import 'watchlist_screen.dart';
 import 'pixiv_direct_screen.dart';
+import 'library_search.dart';
 
 const _sources = librarySources;
 String _stateLabel(String state) => switch (state) {
@@ -53,10 +55,13 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   final _search = TextEditingController();
   final _scroll = ScrollController();
+  final _searchFocus = FocusNode();
+  late final LibrarySearchController _searchHelper;
   Timer? _debounce;
   String _source = '', _type = '', _query = '';
   String _author = '';
-  LibraryTag? _tag;
+  List<LibraryTag> _tags = [];
+  String _tagMode = 'all';
   String? _error;
   int _page = 1, _total = 0, _request = 0;
   bool _loading = true, _refreshFailed = false;
@@ -71,7 +76,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
     super.initState();
     _source = widget.initialSource;
     _author = widget.initialAuthor;
-    _tag = widget.initialTag;
+    _tags = [if (widget.initialTag != null) widget.initialTag!];
+    _searchHelper = LibrarySearchController(widget.api);
+    _syncSuggestions();
+    _searchFocus.addListener(() {
+      if (!_searchFocus.hasFocus && _search.text.trim().isNotEmpty) {
+        _rememberSearch();
+      }
+      _searchHelper.show(_searchFocus.hasFocus);
+    });
     _favoriteGroup = widget.initialFavoriteGroup;
     _history = widget.initialHistory;
     _scroll.addListener(_onScroll);
@@ -94,6 +107,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _debounce?.cancel();
     _search.dispose();
     _scroll.dispose();
+    _searchFocus.dispose();
+    _searchHelper.dispose();
     super.dispose();
   }
 
@@ -135,7 +150,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   if (_source.isNotEmpty) 'source': _source,
                   if (_type.isNotEmpty) 'type': _type,
                   if (_author.isNotEmpty) 'author': _author,
-                  if (_tag != null) 'tag': _tag!.id,
+                  if (_tags.length == 1) 'tag': _tags.single.id,
+                  if (_tags.length > 1)
+                    'tag_ids': _tags.map((t) => t.id).join(','),
+                  if (_tags.length > 1) 'tag_mode': _tagMode,
                 },
               )
               as Map<String, dynamic>;
@@ -167,12 +185,55 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _searchChanged(String value) {
+    _syncSuggestions();
     _debounce?.cancel();
     _request++;
     _debounce = Timer(const Duration(milliseconds: 350), () {
       _query = value.trim();
       _load(reset: true);
     });
+  }
+
+  void _syncSuggestions() => _searchHelper.update(
+    _search.text,
+    _source,
+    _tags.map((t) => t.id).toSet(),
+  );
+  void _rememberSearch() => _searchHelper.remember(
+    SearchEntry(_search.text.trim(), [..._tags], _tagMode),
+  );
+  void _submitSearch() {
+    _debounce?.cancel();
+    _query = _search.text.trim();
+    _rememberSearch();
+    _searchFocus.unfocus();
+    _load(reset: true);
+  }
+
+  void _selectSuggestedTag(LibraryTag tag) {
+    if (_tags.any((t) => t.id == tag.id)) return;
+    if (_tags.length >= 20) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('最多选择 20 个标签')));
+      return;
+    }
+    setState(() {
+      _tags = [..._tags, tag];
+      _search.clear();
+    });
+    _syncSuggestions();
+    _submitSearch();
+  }
+
+  void _restoreSearch(SearchEntry entry) {
+    setState(() {
+      _search.text = entry.query;
+      _tags = [...entry.tags];
+      _tagMode = entry.mode;
+    });
+    _syncSuggestions();
+    _submitSearch();
   }
 
   Future<void> _open(LibraryItem item) async {
@@ -213,16 +274,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _browseTags() async {
-    final tag = await Navigator.of(context).push<LibraryTag>(
+    _searchFocus.unfocus();
+    final selection = await Navigator.of(context).push<TagSelection>(
       MaterialPageRoute(
-        builder: (_) => TagBrowserScreen(api: widget.api, source: _source),
+        builder: (_) => TagBrowserScreen(
+          api: widget.api,
+          source: _source,
+          selection: TagSelection(_tags, _tagMode),
+        ),
       ),
     );
-    if (!mounted || tag == null) return;
+    if (!mounted || selection == null) return;
+    _debounce?.cancel();
     setState(() {
-      _tag = tag;
+      _tags = selection.tags;
+      _tagMode = selection.mode;
+      _search.clear();
+      _query = '';
       _author = '';
     });
+    _syncSuggestions();
+    _rememberSearch();
     _load(reset: true);
   }
 
@@ -246,9 +318,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
     setState(() {
       _source = source;
       if (source.isEmpty) _downloaded = false;
-      _tag = null;
+      _tags = [];
       _author = '';
     });
+    _syncSuggestions();
     _load(reset: true);
   }
 
@@ -336,7 +409,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   selected:
                       !_downloaded &&
                       _source == entry.key &&
-                      _tag == null &&
+                      _tags.isEmpty &&
                       _author.isEmpty,
                   onTap: () => _chooseSource(entry.key),
                 ),
@@ -349,13 +422,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   setState(() {
                     _downloaded = true;
                     _source = '';
-                    _tag = null;
+                    _tags = [];
                     _author = '';
                   });
                   _load(reset: true);
                 },
               ),
               const Divider(),
+              ListTile(
+                leading: const Icon(Icons.radar),
+                title: const Text('标签追踪与下载'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          TagTrackingScreen(api: widget.api, platform: _source),
+                    ),
+                  );
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.favorite_outline),
                 title: const Text('我的收藏'),
@@ -507,15 +593,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
           padding: const EdgeInsets.only(right: 12),
           child: TextField(
             controller: _search,
+            focusNode: _searchFocus,
+            maxLength: 512,
             onChanged: _searchChanged,
             textInputAction: TextInputAction.search,
-            onSubmitted: (value) {
-              _debounce?.cancel();
-              _query = value.trim();
-              _load(reset: true);
-            },
+            onSubmitted: (_) => _submitSearch(),
             decoration: InputDecoration(
               hintText: '搜索标题、作者或标签',
+              counterText: '',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: IconButton(
                 tooltip: '清空搜索',
@@ -559,278 +644,348 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: Column(
+        child: Stack(
           children: [
-            if (_tag != null ||
-                _favoriteGroup != null ||
-                _history ||
-                _downloaded ||
-                _author.isNotEmpty ||
-                _source.isNotEmpty ||
-                _type.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      if (_favoriteGroup != null)
-                        InputChip(
-                          label: Text('我的收藏 · ${widget.initialFavoriteName}'),
-                          onDeleted: () {
-                            setState(() => _favoriteGroup = null);
-                            _load(reset: true);
-                          },
-                        ),
-                      if (_history)
-                        InputChip(
-                          label: const Text('浏览历史'),
-                          onDeleted: () {
-                            setState(() => _history = false);
-                            _load(reset: true);
-                          },
-                        ),
-                      if (_downloaded)
-                        InputChip(
-                          label: const Text('已下载'),
-                          onDeleted: () {
-                            setState(() => _downloaded = false);
-                            _load(reset: true);
-                          },
-                        ),
-                      if (_tag != null || _author.isNotEmpty)
-                        InputChip(
-                          label: Text(
-                            _tag != null
-                                ? '标签作品：${_tag!.displayName}'
-                                : '同作者作品：$_author',
-                          ),
-                          onDeleted: () {
-                            setState(() {
-                              _tag = null;
-                              _author = '';
-                            });
-                            _load(reset: true);
-                          },
-                        ),
-                      if (_source.isNotEmpty)
-                        InputChip(
-                          label: Text(_sources[_source]!),
-                          onDeleted: () {
-                            setState(() => _source = '');
-                            _load(reset: true);
-                          },
-                        ),
-                      if (_type.isNotEmpty)
-                        InputChip(
-                          label: Text(
-                            const {
-                                  'manga': '漫画',
-                                  'illustration': '插画',
-                                  'novel': '小说',
-                                  'article': '文章',
-                                }[_type] ??
-                                _type,
-                          ),
-                          onDeleted: () {
-                            setState(() => _type = '');
-                            _load(reset: true);
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            Expanded(
-              child: _loading && _items.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null && _items.isEmpty
-                  ? _Failure(message: _error!, retry: () => _load())
-                  : _items.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.menu_book_outlined,
-                              size: 48,
-                              color: colors.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _query.isNotEmpty || _type.isNotEmpty
-                                  ? '没有符合条件的作品'
-                                  : '此书库还没有作品',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            const Text('可在网页添加来源或导入文件。'),
-                            TextButton.icon(
-                              onPressed: () => _load(),
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('刷新'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: () => _load(),
-                      child: LayoutBuilder(
-                        builder: (context, box) {
-                          final columns = box.maxWidth >= 1000
-                              ? 5
-                              : box.maxWidth >= 700
-                              ? 4
-                              : box.maxWidth >= 520
-                              ? 3
-                              : 2;
-                          final scale =
-                              MediaQuery.textScalerOf(context).scale(14) / 14;
-                          return CustomScrollView(
-                            controller: _scroll,
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            slivers: [
-                              SliverPadding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  8,
-                                  16,
-                                  16,
-                                ),
-                                sliver: SliverGrid(
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: columns,
-                                        crossAxisSpacing: 12,
-                                        mainAxisSpacing: 12,
-                                        mainAxisExtent:
-                                            ((box.maxWidth -
-                                                        32 -
-                                                        12 * (columns - 1)) /
-                                                    columns) *
-                                                1.25 +
-                                            112 * scale,
-                                      ),
-                                  delegate: SliverChildBuilderDelegate((
-                                    _,
-                                    index,
-                                  ) {
-                                    final item = _items[index];
-                                    return Card(
-                                      clipBehavior: Clip.antiAlias,
-                                      margin: EdgeInsets.zero,
-                                      child: InkWell(
-                                        onTap: () => _open(item),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(
-                                              child: SizedBox(
-                                                width: double.infinity,
-                                                child: ItemCover(
-                                                  api: widget.api,
-                                                  item: item,
-                                                ),
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(10),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    item.displayTitle,
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.titleSmall,
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    item.author.isEmpty
-                                                        ? _sources[item
-                                                                  .source] ??
-                                                              item.source
-                                                        : item.author,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: colors
-                                                          .onSurfaceVariant,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 5),
-                                                  Text(
-                                                    _stateLabel(
-                                                      item.contentState,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color:
-                                                          item.contentState ==
-                                                              'failed'
-                                                          ? colors.error
-                                                          : colors.primary,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }, childCount: _items.length),
-                                ),
+            Column(
+              children: [
+                if (_tags.isNotEmpty)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        if (_tags.length > 1)
+                          DropdownButton<String>(
+                            value: _tagMode,
+                            onChanged: (value) {
+                              setState(() => _tagMode = value!);
+                              _rememberSearch();
+                              _load(reset: true);
+                            },
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'all',
+                                child: Text('全部匹配'),
                               ),
-                              if (_loading || _error != null || _page < _pages)
-                                SliverToBoxAdapter(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: _loading
-                                        ? const Center(
-                                            child: SizedBox(
-                                              width: 22,
-                                              height: 22,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            ),
-                                          )
-                                        : Center(
-                                            child: TextButton(
-                                              onPressed: () => _load(
-                                                append: !_refreshFailed,
-                                              ),
-                                              child: Text(
-                                                _error != null
-                                                    ? (_refreshFailed
-                                                          ? '刷新失败，重试'
-                                                          : '加载失败，重试')
-                                                    : '加载更多',
-                                              ),
-                                            ),
-                                          ),
-                                  ),
-                                ),
+                              DropdownMenuItem(
+                                value: 'any',
+                                child: Text('匹配任一'),
+                              ),
                             ],
-                          );
-                        },
+                          ),
+                        for (final tag in _tags)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: InputChip(
+                              label: Text('标签作品：${tag.displayName}'),
+                              onDeleted: () {
+                                setState(
+                                  () => _tags = _tags
+                                      .where((t) => t.id != tag.id)
+                                      .toList(),
+                                );
+                                _syncSuggestions();
+                                _load(reset: true);
+                              },
+                            ),
+                          ),
+                        TextButton(
+                          onPressed: _browseTags,
+                          child: const Text('编辑标签'),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_favoriteGroup != null ||
+                    _history ||
+                    _downloaded ||
+                    _author.isNotEmpty ||
+                    _source.isNotEmpty ||
+                    _type.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          if (_favoriteGroup != null)
+                            InputChip(
+                              label: Text(
+                                '我的收藏 · ${widget.initialFavoriteName}',
+                              ),
+                              onDeleted: () {
+                                setState(() => _favoriteGroup = null);
+                                _load(reset: true);
+                              },
+                            ),
+                          if (_history)
+                            InputChip(
+                              label: const Text('浏览历史'),
+                              onDeleted: () {
+                                setState(() => _history = false);
+                                _load(reset: true);
+                              },
+                            ),
+                          if (_downloaded)
+                            InputChip(
+                              label: const Text('已下载'),
+                              onDeleted: () {
+                                setState(() => _downloaded = false);
+                                _load(reset: true);
+                              },
+                            ),
+                          if (_author.isNotEmpty)
+                            InputChip(
+                              label: Text('同作者作品：$_author'),
+                              onDeleted: () {
+                                setState(() => _author = '');
+                                _load(reset: true);
+                              },
+                            ),
+                          if (_source.isNotEmpty)
+                            InputChip(
+                              label: Text(_sources[_source]!),
+                              onDeleted: () {
+                                setState(() => _source = '');
+                                _load(reset: true);
+                              },
+                            ),
+                          if (_type.isNotEmpty)
+                            InputChip(
+                              label: Text(
+                                const {
+                                      'manga': '漫画',
+                                      'illustration': '插画',
+                                      'novel': '小说',
+                                      'article': '文章',
+                                    }[_type] ??
+                                    _type,
+                              ),
+                              onDeleted: () {
+                                setState(() => _type = '');
+                                _load(reset: true);
+                              },
+                            ),
+                        ],
                       ),
                     ),
+                  ),
+                Expanded(
+                  child: _loading && _items.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null && _items.isEmpty
+                      ? _Failure(message: _error!, retry: () => _load())
+                      : _items.isEmpty
+                      ? Center(
+                          child: SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.menu_book_outlined,
+                                    size: 48,
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _query.isNotEmpty || _type.isNotEmpty
+                                        ? '没有符合条件的作品'
+                                        : '此书库还没有作品',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text('可在网页添加来源或导入文件。'),
+                                  TextButton.icon(
+                                    onPressed: () => _load(),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('刷新'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: () => _load(),
+                          child: LayoutBuilder(
+                            builder: (context, box) {
+                              final columns = box.maxWidth >= 1000
+                                  ? 5
+                                  : box.maxWidth >= 700
+                                  ? 4
+                                  : box.maxWidth >= 520
+                                  ? 3
+                                  : 2;
+                              final scale =
+                                  MediaQuery.textScalerOf(context).scale(14) /
+                                  14;
+                              return CustomScrollView(
+                                controller: _scroll,
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                slivers: [
+                                  SliverPadding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      8,
+                                      16,
+                                      16,
+                                    ),
+                                    sliver: SliverGrid(
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: columns,
+                                            crossAxisSpacing: 12,
+                                            mainAxisSpacing: 12,
+                                            mainAxisExtent:
+                                                ((box.maxWidth -
+                                                            32 -
+                                                            12 *
+                                                                (columns - 1)) /
+                                                        columns) *
+                                                    1.25 +
+                                                112 * scale,
+                                          ),
+                                      delegate: SliverChildBuilderDelegate((
+                                        _,
+                                        index,
+                                      ) {
+                                        final item = _items[index];
+                                        return Card(
+                                          clipBehavior: Clip.antiAlias,
+                                          margin: EdgeInsets.zero,
+                                          child: InkWell(
+                                            onTap: () => _open(item),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Expanded(
+                                                  child: SizedBox(
+                                                    width: double.infinity,
+                                                    child: ItemCover(
+                                                      api: widget.api,
+                                                      item: item,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    10,
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        item.displayTitle,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: Theme.of(
+                                                          context,
+                                                        ).textTheme.titleSmall,
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        item.author.isEmpty
+                                                            ? _sources[item
+                                                                      .source] ??
+                                                                  item.source
+                                                            : item.author,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: colors
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 5),
+                                                      Text(
+                                                        _stateLabel(
+                                                          item.contentState,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color:
+                                                              item.contentState ==
+                                                                  'failed'
+                                                              ? colors.error
+                                                              : colors.primary,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }, childCount: _items.length),
+                                    ),
+                                  ),
+                                  if (_loading ||
+                                      _error != null ||
+                                      _page < _pages)
+                                    SliverToBoxAdapter(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: _loading
+                                            ? const Center(
+                                                child: SizedBox(
+                                                  width: 22,
+                                                  height: 22,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                ),
+                                              )
+                                            : Center(
+                                                child: TextButton(
+                                                  onPressed: () => _load(
+                                                    append: !_refreshFailed,
+                                                  ),
+                                                  child: Text(
+                                                    _error != null
+                                                        ? (_refreshFailed
+                                                              ? '刷新失败，重试'
+                                                              : '加载失败，重试')
+                                                        : '加载更多',
+                                                  ),
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                ),
+              ],
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LibrarySearchPanel(
+                controller: _searchHelper,
+                onTag: _selectSuggestedTag,
+                onHistory: _restoreSearch,
+                onBrowse: _browseTags,
+                onClose: _searchFocus.unfocus,
+              ),
             ),
           ],
         ),
