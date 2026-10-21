@@ -4549,6 +4549,88 @@
       "media_type": null,
       "download": false,
       "confirmation": false
+    },
+    {
+      "id": "GET /queue/sources",
+      "method": "GET",
+      "path": "/queue/sources",
+      "title": "查看来源采集开关",
+      "group": "queue",
+      "parameters": [],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "GET /queue/sources/{platform}",
+      "method": "GET",
+      "path": "/queue/sources/{platform}",
+      "title": "查看指定来源采集",
+      "group": "queue",
+      "parameters": [
+        {
+          "name": "platform",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Platform",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono"
+            ]
+          }
+        }
+      ],
+      "body": null,
+      "media_type": null,
+      "download": false,
+      "confirmation": false
+    },
+    {
+      "id": "PUT /queue/sources/{platform}",
+      "method": "PUT",
+      "path": "/queue/sources/{platform}",
+      "title": "设置来源采集开关",
+      "group": "queue",
+      "parameters": [
+        {
+          "name": "platform",
+          "location": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Platform",
+            "enum": [
+              "pixiv",
+              "ehentai",
+              "picacg",
+              "jm",
+              "kemono"
+            ]
+          }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "启用自动采集"
+          }
+        }
+      },
+      "media_type": "application/json",
+      "download": false,
+      "confirmation": false
     }
   ]
 }

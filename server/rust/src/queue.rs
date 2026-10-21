@@ -21,6 +21,133 @@ pub const LANES: [(&str, &str); 8] = [
     ("translation", "AI 汉化"),
     ("other", "其他任务"),
 ];
+pub const SOURCES: [(&str, &str); 5] = [
+    ("pixiv", "Pixiv"),
+    ("ehentai", "E-Hentai"),
+    ("picacg", "哔咔 PicACG"),
+    ("jm", "JM 天堂"),
+    ("kemono", "Kemono"),
+];
+pub(crate) fn source_enabled(control: &Value, source: &str) -> bool {
+    control["lanes"]["_sources"][source]["enabled"] != false
+}
+pub(crate) fn job_source(job: &Value) -> String {
+    if matches!(
+        job["kind"].as_str(),
+        Some("author_profile" | "author_feed" | "series_sync" | "pixiv_bookmark")
+    ) {
+        "pixiv".to_owned()
+    } else {
+        json_column(&job["payload"])["platform"]
+            .as_str()
+            .unwrap_or("")
+            .to_owned()
+    }
+}
+pub(crate) fn source_expression(s: &AppState) -> String {
+    let expression = format!(
+        "CASE WHEN kind IN ('author_profile','author_feed','series_sync','pixiv_bookmark') THEN 'pixiv' ELSE COALESCE({},'') END",
+        tasks::json_text(s, "payload", "platform")
+    );
+    if s.db.mysql() {
+        // CASE over JSON_UNQUOTE can expose BLOB/BINARY metadata. Platform IDs
+        // are short ASCII enums; explicitly return text instead of weakening
+        // the shared database decoder for arbitrary binary columns.
+        format!("CAST(({expression}) AS CHAR(32) CHARACTER SET utf8mb4)")
+    } else {
+        expression
+    }
+}
+pub(crate) fn source_filter(control: &Value, expression: &str) -> (String, Vec<Value>) {
+    let disabled: Vec<_> = SOURCES
+        .iter()
+        .filter(|(id, _)| !source_enabled(control, id))
+        .map(|(id, _)| json!(id))
+        .collect();
+    if disabled.is_empty() {
+        ("1=1".to_owned(), disabled)
+    } else {
+        (
+            format!(
+                "({expression}) NOT IN ({})",
+                crate::library::placeholders(disabled.len())
+            ),
+            disabled,
+        )
+    }
+}
+async fn source_counts(s: &AppState) -> Result<Vec<Value>> {
+    let expression = source_expression(s);
+    s.db.query(&format!("SELECT queue_lane,{expression} AS source,status,COUNT(*) AS n FROM jobs WHERE queue_lane IN ('download','details','checks') AND status IN ('queued','running') GROUP BY queue_lane,{expression},status"), &[]).await
+}
+fn source_view(control: &Value, id: &str, label: &str, counts: &[Value]) -> Value {
+    let enabled = source_enabled(control, id);
+    let master = truth(&control["paused"]);
+    let mut tally = json!({"queued":0,"running":0});
+    for row in counts.iter().filter(|c| c["source"] == id) {
+        if let Some(status) = row["status"]
+            .as_str()
+            .filter(|v| matches!(*v, "queued" | "running"))
+        {
+            tally[status] =
+                json!(tally[status].as_i64().unwrap_or(0) + row["n"].as_i64().unwrap_or(0));
+        }
+    }
+    json!({"id":id,"label":label,"enabled":enabled,"effective_enabled":enabled&&!master,"blocked_by_master":master,"counts":tally,"changed_at":control["lanes"]["_sources"][id]["changed_at"]})
+}
+pub async fn sources(State(s): State<AppState>) -> Result<Json<Value>> {
+    let row = control(&s).await?;
+    let counts = source_counts(&s).await?;
+    Ok(Json(
+        json!({"items":SOURCES.iter().map(|(id,label)|source_view(&row,id,label,&counts)).collect::<Vec<_>>()}),
+    ))
+}
+pub async fn source(State(s): State<AppState>, Path(id): Path<String>) -> Result<Json<Value>> {
+    let (_, label) = SOURCES
+        .iter()
+        .find(|(key, _)| *key == id)
+        .ok_or_else(|| ApiError::missing("采集来源不存在"))?;
+    Ok(Json(source_view(
+        &control(&s).await?,
+        &id,
+        label,
+        &source_counts(&s).await?,
+    )))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceChanges {
+    enabled: bool,
+}
+pub async fn update_source(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    ApiJson(c): ApiJson<SourceChanges>,
+) -> Result<Json<Value>> {
+    s.config.writable()?;
+    let (_, label) = SOURCES
+        .iter()
+        .find(|(key, _)| *key == id)
+        .ok_or_else(|| ApiError::missing("采集来源不存在"))?;
+    let mut tx = s.db.begin().await?;
+    let mut row = locked(&s, &mut tx).await?;
+    if c.enabled != source_enabled(&row, &id) {
+        row["lanes"]["_sources"][&id] =
+            json!({"enabled":c.enabled,"changed_at":iso(&json!(now()))});
+        tx.execute(
+            "UPDATE queue_control SET lanes=?,updated_at=? WHERE id=1",
+            &[json!(row["lanes"].to_string()), json!(now())],
+        )
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(Json(source_view(
+        &row,
+        &id,
+        label,
+        &source_counts(&s).await?,
+    )))
+}
 pub(crate) fn collection(l: &str) -> bool {
     matches!(l, "download" | "details" | "checks")
 }
@@ -269,6 +396,7 @@ pub async fn job(State(s): State<AppState>, Path(id): Path<String>) -> Result<Js
 }
 pub async fn status(State(s): State<AppState>) -> Result<Json<Value>> {
     let row = control(&s).await?;
+    let source_counts = source_counts(&s).await?;
     let proxy_ready = crate::network::managed_ready(&s).await.unwrap_or(false);
     let counts =
         s.db.query(
@@ -292,6 +420,25 @@ pub async fn status(State(s): State<AppState>) -> Result<Json<Value>> {
             }
         }
         entry["counts"] = tally;
+        let blocked_sources: Vec<_> = SOURCES
+            .iter()
+            .filter(|(source, _)| !source_enabled(&row, source))
+            .filter_map(|(source, label)| {
+                let queued: i64 = source_counts
+                    .iter()
+                    .filter(|c| {
+                        c["queue_lane"] == id && c["source"] == *source && c["status"] == "queued"
+                    })
+                    .map(|c| c["n"].as_i64().unwrap_or(0))
+                    .sum();
+                (queued > 0).then(|| json!({"id":source,"label":label,"queued":queued}))
+            })
+            .collect();
+        let blocked_count: i64 = blocked_sources
+            .iter()
+            .map(|c| c["queued"].as_i64().unwrap_or(0))
+            .sum();
+        entry["blocked_sources"] = json!(blocked_sources);
         let runtime = s.runtime.read().map(|v| v.clone()).unwrap_or(Value::Null);
         let worker = runtime["workers"]
             .as_array()
@@ -304,6 +451,16 @@ pub async fn status(State(s): State<AppState>) -> Result<Json<Value>> {
                 "paused",
                 "此队列或统一采集开关已暂停",
                 "检查队列独立开关及暂停来源",
+            )
+        } else if blocked_count > 0
+            && blocked_count == entry["counts"]["queued"].as_i64().unwrap_or(0)
+            && entry["counts"]["running"] == 0
+        {
+            (
+                "waiting",
+                "source_paused",
+                "等待任务所属来源的采集开关已关闭",
+                "在来源采集中开启对应平台；手动下载和失败重试独立运行",
             )
         } else if !running {
             (
@@ -366,6 +523,6 @@ pub async fn status(State(s): State<AppState>) -> Result<Json<Value>> {
     for c in s.db.query("SELECT status,COUNT(*) AS n FROM jobs WHERE kind IN ('import','import_content','source_sync','series_sync','author_profile','author_feed','pixiv_bookmark') GROUP BY status",&[]).await?{if let Some(k)=c["status"].as_str().filter(|s|matches!(*s,"queued"|"running"|"failed")){totals[k]=c["n"].clone();}}
     let active=s.db.query("SELECT * FROM jobs WHERE status='running' AND kind IN ('import','import_content','source_sync','series_sync','author_profile','author_feed','pixiv_bookmark') ORDER BY created_at,id",&[]).await?.into_iter().map(job_view).collect::<Vec<_>>();
     Ok(Json(
-        json!({"settings":view(&row),"counts":totals,"active":active.first(),"active_jobs":active,"lanes":lanes,"runtime":s.runtime.read().map(|v|v.clone()).unwrap_or(Value::Null)}),
+        json!({"settings":view(&row),"sources":SOURCES.iter().map(|(id,label)|source_view(&row,id,label,&source_counts)).collect::<Vec<_>>(),"counts":totals,"active":active.first(),"active_jobs":active,"lanes":lanes,"runtime":s.runtime.read().map(|v|v.clone()).unwrap_or(Value::Null)}),
     ))
 }

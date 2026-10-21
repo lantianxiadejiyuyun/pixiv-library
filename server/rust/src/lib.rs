@@ -385,6 +385,11 @@ pub fn router(state: AppState) -> Router {
             get(queue::settings).put(queue::update_settings),
         )
         .route("/api/queue/lanes/{id}", put(queue::update_lane))
+        .route("/api/queue/sources", get(queue::sources))
+        .route(
+            "/api/queue/sources/{id}",
+            get(queue::source).put(queue::update_source),
+        )
         .route("/api/queue/status", get(queue::status))
         .route("/api/jobs", get(queue::jobs))
         .route("/api/jobs/{id}", get(queue::job))

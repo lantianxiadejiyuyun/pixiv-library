@@ -326,7 +326,13 @@ pub async fn claim(s: &AppState, key: &str) -> Result<Option<Claim>> {
         .map(|(r, _, b, f)| available_filter(s, r, b, f.as_deref()))
         .unwrap_or_else(|| ("1=1".to_owned(), vec![]));
     args.insert(0, json!(key));
-    let candidates=tx.query(&format!("SELECT * FROM jobs WHERE queue_lane=? AND status='queued' AND({filter}) AND({transport_filter}) ORDER BY created_at,id LIMIT 64"),&args).await?;
+    let (source_filter, source_args) = if queue::collection(key) {
+        queue::source_filter(&control, &queue::source_expression(s))
+    } else {
+        ("1=1".to_owned(), vec![])
+    };
+    args.extend(source_args);
+    let candidates=tx.query(&format!("SELECT * FROM jobs WHERE queue_lane=? AND status='queued' AND({filter}) AND({source_filter}) AND({transport_filter}) ORDER BY created_at,id LIMIT 64"),&args).await?;
     let mut cursor = control["download_account_cursor"].as_u64().unwrap_or(0) as usize;
     let mut chosen = None;
     for mut job in candidates {
@@ -425,6 +431,8 @@ impl Context {
         {
             if truth(&queue::lane(&control, &self.lane)["paused"])
                 || truth(&control["paused"]) && queue::collection(&self.lane)
+                || queue::collection(&self.lane)
+                    && !queue::source_enabled(&control, &queue::job_source(&j))
             {
                 return Err(TaskError::Paused);
             }

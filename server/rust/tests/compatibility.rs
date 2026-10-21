@@ -1240,6 +1240,355 @@ async fn queue_controls_keep_independent_lanes_and_pause_history() {
     );
 }
 #[tokio::test]
+async fn source_switches_persist_independently_and_validate_writes() {
+    let app = TestApp::new(false).await;
+    let (_, defaults) = app.request("GET", "/api/queue/sources", None).await;
+    assert_eq!(defaults["items"].as_array().unwrap().len(), 5);
+    assert!(
+        defaults["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|v| v["enabled"] == true)
+    );
+    let (_, before) = app.request("GET", "/api/queue/settings", None).await;
+    for id in ["pixiv", "kemono"] {
+        let (status, value) = app
+            .request(
+                "PUT",
+                &format!("/api/queue/sources/{id}"),
+                Some(json!({"enabled":false})),
+            )
+            .await;
+        assert_eq!(status, 200, "{value}");
+        assert_eq!(value["enabled"], false);
+        assert!(value["changed_at"].is_string());
+    }
+    assert_eq!(
+        app.request("GET", "/api/queue/settings", None).await.1,
+        before
+    );
+    // A new process has no per-source memory state to recover: read the same
+    // database through a fresh connection and router.
+    let restarted = qiye_server::connect(app.state.config.clone())
+        .await
+        .unwrap();
+    let response = qiye_server::router(restarted)
+        .oneshot(
+            Request::builder()
+                .uri("/api/queue/sources/pixiv")
+                .header("cookie", &app.cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let value: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(value["enabled"], false);
+    assert_eq!(
+        app.request("GET", "/api/queue/sources/jm", None).await.1["enabled"],
+        true
+    );
+    assert_eq!(
+        app.request(
+            "PUT",
+            "/api/queue/sources/local",
+            Some(json!({"enabled":false}))
+        )
+        .await
+        .0,
+        404
+    );
+    assert_eq!(
+        app.request(
+            "PUT",
+            "/api/queue/sources/pixiv",
+            Some(json!({"enabled":"false"}))
+        )
+        .await
+        .0,
+        422
+    );
+    assert_eq!(
+        app.request(
+            "PUT",
+            "/api/queue/sources/pixiv",
+            Some(json!({"enabled":false,"paused":true}))
+        )
+        .await
+        .0,
+        422
+    );
+    let (_, catalog) = app.request("GET", "/api/mobile-admin/catalog", None).await;
+    assert!(
+        catalog["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["method"] == "PUT" && a["path"] == "/queue/sources/{platform}")
+    );
+    let read_only = TestApp::new(true).await;
+    assert_eq!(
+        read_only
+            .request(
+                "PUT",
+                "/api/queue/sources/pixiv",
+                Some(json!({"enabled":false}))
+            )
+            .await
+            .0,
+        409
+    );
+}
+#[tokio::test]
+async fn disabled_sources_do_not_starve_other_sources_or_block_manual_and_retry_jobs() {
+    use qiye_server::tasks;
+    use std::sync::Arc;
+    use tokio_util::sync::CancellationToken;
+    let app = TestApp::new(false).await;
+    let account = qiye_server::accounts::save(
+        &app.state,
+        "pixiv",
+        "fixture",
+        &json!({"refresh_token":"synthetic-only-refresh-token"}),
+        false,
+    )
+    .await
+    .unwrap();
+    qiye_server::secrets::put(
+        &app.state,
+        qiye_server::accounts::ROLE_KEY,
+        &json!({"enabled":false,"retry_account_ids":[account["id"]]}),
+    )
+    .await
+    .unwrap();
+    app.state.db.execute("DELETE FROM jobs", &[]).await.unwrap();
+    let mut tx = app.state.db.begin().await.unwrap();
+    for n in 0..80 {
+        tasks::enqueue_tx(
+            &app.state,
+            &mut tx,
+            "import",
+            &json!({"platform":"ehentai","remote_id":format!("{n}/test"),"download":false}),
+        )
+        .await
+        .unwrap();
+    }
+    let active = tasks::enqueue_tx(
+        &app.state,
+        &mut tx,
+        "import",
+        &json!({"platform":"kemono","remote_id":"patreon/1/2","download":false}),
+    )
+    .await
+    .unwrap();
+    tasks::enqueue_tx(
+        &app.state,
+        &mut tx,
+        "author_profile",
+        &json!({"author_id":"77"}),
+    )
+    .await
+    .unwrap();
+    tasks::enqueue_tx(
+        &app.state,
+        &mut tx,
+        "import",
+        &json!({"platform":"pixiv","remote_id":"5","download_origin":"manual"}),
+    )
+    .await
+    .unwrap();
+    tasks::enqueue_tx(
+        &app.state,
+        &mut tx,
+        "import",
+        &json!({"platform":"pixiv","remote_id":"6","retry_queue":true}),
+    )
+    .await
+    .unwrap();
+    tasks::enqueue_tx(&app.state, &mut tx, "ai", &json!({"item_id":"item-1"}))
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    for id in ["ehentai", "pixiv"] {
+        assert_eq!(
+            app.request(
+                "PUT",
+                &format!("/api/queue/sources/{id}"),
+                Some(json!({"enabled":false}))
+            )
+            .await
+            .0,
+            200
+        );
+    }
+    let claim = tasks::claim(&app.state, "details").await.unwrap().unwrap();
+    assert_eq!(
+        claim.job["id"], active["id"],
+        "disabled jobs must be filtered before the 64-candidate limit"
+    );
+    tasks::execute(
+        app.state.clone(),
+        claim,
+        Arc::new(CompletedExecutor),
+        CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    assert!(tasks::claim(&app.state, "details").await.unwrap().is_none());
+    assert!(
+        tasks::claim(&app.state, "checks").await.unwrap().is_none(),
+        "author tasks without a platform field still belong to Pixiv"
+    );
+    let (_, status) = app.request("GET", "/api/queue/status", None).await;
+    let checks = status["lanes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == "checks")
+        .unwrap();
+    assert_eq!(checks["diagnostic"]["code"], "source_paused");
+    assert_eq!(checks["blocked_sources"][0]["id"], "pixiv");
+    app.request("PUT", "/api/queue/settings", Some(json!({"paused":true})))
+        .await;
+    for lane in ["manual_download", "retry", "ai"] {
+        let claim = tasks::claim(&app.state, lane).await.unwrap().expect(lane);
+        tasks::execute(
+            app.state.clone(),
+            claim.clone(),
+            Arc::new(CompletedExecutor),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            app.state
+                .db
+                .one(
+                    "SELECT status FROM jobs WHERE id=?",
+                    &[claim.job["id"].clone()]
+                )
+                .await
+                .unwrap()
+                .unwrap()["status"],
+            "completed"
+        );
+    }
+    app.request("PUT", "/api/queue/settings", Some(json!({"paused":false})))
+        .await;
+    app.request(
+        "PUT",
+        "/api/queue/sources/ehentai",
+        Some(json!({"enabled":true})),
+    )
+    .await;
+    let claim = tasks::claim(&app.state, "details").await.unwrap().unwrap();
+    let ctx = tasks::Context::new(app.state.clone(), &claim, CancellationToken::new());
+    ctx.checkpoint(Some(25.0)).await.unwrap();
+    app.request(
+        "PUT",
+        "/api/queue/sources/ehentai",
+        Some(json!({"enabled":false})),
+    )
+    .await;
+    assert!(matches!(
+        ctx.checkpoint(None).await,
+        Err(tasks::TaskError::Paused)
+    ));
+    tasks::execute(
+        app.state.clone(),
+        claim.clone(),
+        Arc::new(CompletedExecutor),
+        CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let row = app
+        .state
+        .db
+        .one(
+            "SELECT status,error,worker_id FROM jobs WHERE id=?",
+            &[claim.job["id"].clone()],
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row["status"], "queued");
+    assert!(row["error"].is_null());
+    assert!(row["worker_id"].is_null());
+    app.request(
+        "PUT",
+        "/api/queue/sources/ehentai",
+        Some(json!({"enabled":true})),
+    )
+    .await;
+    assert!(tasks::claim(&app.state, "details").await.unwrap().is_some());
+}
+#[tokio::test]
+async fn source_pause_holds_subscription_scheduling_until_resumed() {
+    let app = TestApp::new(false).await;
+    app.state.db.execute("DELETE FROM jobs", &[]).await.unwrap();
+    let (status, sub) = app
+        .request(
+            "POST",
+            "/api/subscriptions",
+            Some(
+                json!({"platform":"pixiv","target_type":"author","target":"77","label":"fixture"}),
+            ),
+        )
+        .await;
+    assert_eq!(status, 200, "{sub}");
+    app.request(
+        "PUT",
+        "/api/queue/sources/pixiv",
+        Some(json!({"enabled":false})),
+    )
+    .await;
+    qiye_server::acquisition::tick(&app.state).await.unwrap();
+    assert_eq!(
+        app.state
+            .db
+            .count("SELECT COUNT(*) FROM jobs", &[])
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(
+        app.state
+            .db
+            .one(
+                "SELECT next_check_at FROM subscriptions WHERE id=?",
+                &[sub["id"].clone()]
+            )
+            .await
+            .unwrap()
+            .unwrap()["next_check_at"]
+            .is_null()
+    );
+    assert_eq!(
+        app.request("GET", "/api/pixiv/authors/77", None).await.1["refresh_paused"],
+        true
+    );
+    app.request(
+        "PUT",
+        "/api/queue/sources/pixiv",
+        Some(json!({"enabled":true})),
+    )
+    .await;
+    qiye_server::acquisition::tick(&app.state).await.unwrap();
+    assert_eq!(
+        app.state
+            .db
+            .count("SELECT COUNT(*) FROM jobs WHERE kind='source_sync'", &[])
+            .await
+            .unwrap(),
+        1
+    );
+}
+
+#[tokio::test]
 async fn thumbnails_merge_concurrent_requests_without_modifying_the_nas() {
     let app = TestApp::new(true).await;
     let (a, b) = tokio::join!(

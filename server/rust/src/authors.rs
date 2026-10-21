@@ -44,7 +44,9 @@ pub async fn paused(s: &AppState) -> Result<bool> {
             .await?
             .unwrap_or(Value::Null);
     let lanes = json_column(&row["lanes"]);
-    Ok(truth(&row["paused"]) || truth(&lanes["checks"]["paused"]))
+    Ok(truth(&row["paused"])
+        || truth(&lanes["checks"]["paused"])
+        || !queue::source_enabled(&json!({"lanes":lanes}), "pixiv"))
 }
 pub fn scope(author: &str, section: &str, category: &str, restrict: &str, account: &str) -> String {
     let text = format!(

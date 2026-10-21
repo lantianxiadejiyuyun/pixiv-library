@@ -447,7 +447,9 @@ pub async fn tick(s: &AppState) -> Result<()> {
         tx.commit().await?;
         return Ok(());
     }
-    let due=tx.query("SELECT * FROM subscriptions WHERE enabled=1 AND platform IN ('pixiv','picacg','kemono') AND (next_check_at IS NULL OR next_check_at<=?) ORDER BY next_check_at,created_at,id LIMIT 20",&[json!(now())]).await?;
+    let (filter, mut args) = queue::source_filter(&control, "platform");
+    args.insert(0, json!(now()));
+    let due=tx.query(&format!("SELECT * FROM subscriptions WHERE enabled=1 AND platform IN ('pixiv','picacg','kemono') AND (next_check_at IS NULL OR next_check_at<=?) AND ({filter}) ORDER BY next_check_at,created_at,id LIMIT 20"),&args).await?;
     for row in due {
         if !subscriptions::ready(row["platform"].as_str().unwrap_or("")) {
             continue;
@@ -467,8 +469,10 @@ pub async fn tick(s: &AppState) -> Result<()> {
         )
         .await?;
     }
-    schedule_bookmarks(s, &mut tx, false).await?;
-    crate::watchlist::schedule(s, &mut tx).await?;
+    if queue::source_enabled(&control, "pixiv") {
+        schedule_bookmarks(s, &mut tx, false).await?;
+        crate::watchlist::schedule(s, &mut tx).await?;
+    }
     tx.commit().await?;
     Ok(())
 }

@@ -363,4 +363,74 @@ async fn mysql_84_native_contract_and_transactions() {
             .unwrap(),
         jobs_before
     );
+    // Source switches use the existing JSON settings column on MySQL too.
+    state
+        .db
+        .execute(
+            "UPDATE jobs SET status='cancelled',worker_id=NULL,lease_until=NULL",
+            &[],
+        )
+        .await
+        .unwrap();
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/queue/sources/ehentai")
+                .header("cookie", &cookie)
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"enabled":false}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let mut tx = state.db.begin().await.unwrap();
+    for n in 0..70 {
+        qiye_server::tasks::enqueue_tx(
+            &state,
+            &mut tx,
+            "import",
+            &json!({"platform":"ehentai","remote_id":format!("{n}/fixture"),"download":false}),
+        )
+        .await
+        .unwrap();
+    }
+    let work = qiye_server::tasks::enqueue_tx(
+        &state,
+        &mut tx,
+        "import",
+        &json!({"platform":"kemono","remote_id":"patreon/1/2","download":false}),
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let claim = qiye_server::tasks::claim(&state, "details")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(claim.job["id"], work["id"]);
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/queue/status")
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let status: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let source = status["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == "ehentai")
+        .unwrap();
+    assert_eq!(source["enabled"], false);
+    assert_eq!(source["counts"]["queued"], 70);
 }

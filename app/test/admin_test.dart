@@ -218,6 +218,69 @@ void main() {
     },
   );
 
+  testWidgets(
+    'source collection switch reads saved state and changes only that source',
+    (tester) async {
+      final contract =
+          jsonDecode(
+                File(
+                  '../server/rust/contracts/mobile-catalog.json',
+                ).readAsStringSync(),
+              )
+              as JsonMap;
+      final edit = (contract['actions'] as List).cast<JsonMap>().firstWhere(
+        (a) => a['method'] == 'PUT' && a['path'] == '/queue/sources/{platform}',
+      );
+      final writes = <JsonMap>[];
+      final api = LibraryApi(
+        server: Uri.parse('https://library.test'),
+        client: MockClient((request) async {
+          expect(request.url.path, '/api/queue/sources/pixiv');
+          if (request.method == 'GET')
+            return response({
+              'id': 'pixiv',
+              'enabled': false,
+              'blocked_by_master': true,
+            });
+          writes.add(jsonDecode(request.body) as JsonMap);
+          return response({
+            'id': 'pixiv',
+            'enabled': true,
+            'blocked_by_master': true,
+          });
+        }),
+      );
+      addTearDown(api.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminOperationPage(
+            api: api,
+            catalog: AdminCatalog.fromJson(contract),
+            action: edit,
+            initial: const {'platform': 'pixiv'},
+          ),
+        ),
+      );
+      await settle(tester);
+      final enabled = find.byType(DropdownButtonFormField<bool>);
+      expect(
+        tester.widget<DropdownButtonFormField<bool>>(enabled).initialValue,
+        false,
+      );
+      await tester.tap(enabled);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('是').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.bySubtype<FilledButton>());
+      await tester.tap(find.bySubtype<FilledButton>());
+      await settle(tester);
+      expect(writes, [
+        {'enabled': true},
+      ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('AI node picker uses controller nodes instead of proxy nodes', (
     tester,
   ) async {

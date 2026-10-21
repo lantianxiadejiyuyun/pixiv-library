@@ -10,6 +10,7 @@ pub async fn tick(s: &AppState, cursor: &mut Option<String>) -> Result<usize> {
     let mut tx = s.db.begin().await?;
     let settings = queue::locked(s, &mut tx).await?;
     if truth(&settings["paused"])
+        || !queue::source_enabled(&settings, "pixiv")
         || queue::lane(&settings, "details")["paused"] == true
         || tx
             .query(
