@@ -9,7 +9,8 @@ interface QueueSettings {paused: boolean; rate_limit_enabled: boolean; min_inter
 interface QueueReason {code: string; message: string; action: string; source?: string; changed_at?: string | null; resume_at?: string}
 interface Lane {id: string; label: string; paused: boolean; blocked_by_master: boolean; concurrency: number; counts: {queued: number; running: number; failed: number; completed: number}; diagnostic?: {state: string; code: string; reasons: QueueReason[]}}
 interface Worker {lane: string; pid: number | null; state: string; cpus: number[]; requested_cpus: number[]; affinity_applied: boolean; active: number; restarts: number}
-interface QueueState {runtime?: {mode: string; api_cpus: number[]; shared_cpus: boolean; affinity_applied: boolean; workers: Worker[]}; lanes?: Lane[]; settings: QueueSettings; counts: {queued: number; running: number; failed: number}; active: Job | null; active_jobs?: Job[]}
+interface CollectionSource {id: string; label: string; enabled: boolean; effective_enabled: boolean; blocked_by_master: boolean; counts: {queued: number; running: number}}
+interface QueueState {runtime?: {mode: string; api_cpus: number[]; shared_cpus: boolean; affinity_applied: boolean; workers: Worker[]}; lanes?: Lane[]; sources?: CollectionSource[]; settings: QueueSettings; counts: {queued: number; running: number; failed: number}; active: Job | null; active_jobs?: Job[]}
 const emit = defineEmits<{changed: []; lane: [id: string]}>()
 const laneLimits = ref<Record<string, number>>({})
 const dirtyLanes = new Set<string>()
@@ -109,6 +110,18 @@ async function queueMissingCovers() {
   } catch (failure) { error.value = errorMessage(failure) }
   finally { action.value = ''; load(true) }
 }
+async function toggleSource(source: CollectionSource) {
+  if (busy.value) return
+  action.value = `source:${source.id}`; error.value = ''; feedback.value = ''; ++requestId
+  try {
+    const next = await api<CollectionSource>(`/queue/sources/${source.id}`, {method: 'PUT', body: JSON.stringify({enabled: !source.enabled})})
+    if (disposed) return
+    Object.assign(source, next)
+    feedback.value = next.enabled ? `${next.label} 自动采集已开启${next.blocked_by_master ? '，等待采集总开关恢复。' : '。'}` : `${next.label} 自动采集已关闭，任务保留在队列中；手动下载和失败重试不受影响。`
+    emit('changed')
+  } catch (failure) { if (!disposed) error.value = errorMessage(failure) }
+  finally { action.value = ''; if (!disposed) load(true) }
+}
 onMounted(() => { load(); timer = setInterval(() => { if (!document.hidden) void load(true) }, 6000) })
 onBeforeUnmount(() => { disposed = true; requestId++; clearInterval(timer) })
 </script>
@@ -118,6 +131,11 @@ onBeforeUnmount(() => { disposed = true; requestId++; clearInterval(timer) })
     <header><div><Download :size="21" /><h2>队列管理</h2><span v-if="state" class="status-pill" :class="state.settings.paused ? 'queued' : 'running'">{{ state.settings.paused ? '采集总开关：暂停' : '采集总开关：开启' }}</span></div><div class="download-queue-actions"><button class="icon-button" aria-label="刷新采集队列" :disabled="busy" @click="load()"><RefreshCw :size="16" :class="{spin: loading}" /></button><button v-if="state" class="button secondary small" :disabled="busy" @click="save('paused')"><LoaderCircle v-if="action === 'paused'" class="spin" :size="16" /><Play v-else-if="state.settings.paused" :size="16" /><Pause v-else :size="16" />{{ state.settings.paused ? '继续采集' : '暂停采集' }}</button></div></header>
     <div v-if="loading && !state" class="inline-loading"><LoaderCircle class="spin" :size="18" />正在读取采集队列…</div>
     <template v-if="state">
+      <section v-if="state.sources?.length" class="collection-sources" aria-label="来源采集">
+        <div class="collection-sources-heading"><h3>来源采集</h3><span v-if="state.settings.paused" class="field-hint">采集总开关已暂停</span></div>
+        <div class="collection-source-grid"><article v-for="source in state.sources" :key="source.id" :class="{'source-disabled': !source.enabled}"><div class="collection-source-heading"><strong>{{ source.label }}</strong><button type="button" class="request-limit-switch" :class="{enabled: source.enabled}" role="switch" :aria-label="`${source.label}自动采集`" :aria-checked="source.enabled" :disabled="busy" @click="toggleSource(source)"><span /></button></div><span class="collection-source-state">{{ !source.enabled ? '已关闭' : source.blocked_by_master ? '已开启 · 等待总开关' : '已开启' }}</span><small>{{ source.counts.running }} 运行 · {{ source.counts.queued }} 等待</small></article></div>
+        <p class="field-hint">分别控制作者／订阅检查、详情解析和自动下载。关闭后任务保留，运行中的任务在检查点重新排队；手动下载和失败重试独立运行。</p>
+      </section>
       <div v-if="pausedLanes.length" class="queue-pause-summary" role="status"><AlertCircle :size="18"/><div><strong>{{ pausedLanes.length }} 个队列已暂停 · {{ pausedWaiting }} 条任务等待恢复</strong><p>{{ pausedLanes.map(lane => lane.label).join('、') }}。具体原因和恢复方法见下方对应队列。</p></div></div>
       <div v-if="state.runtime?.mode === 'process'" class="queue-runtime" role="status"><strong>独立工作进程 {{ runningWorkers }}/{{ state.runtime.workers.length }}</strong><span>Web {{ state.runtime.affinity_applied ? `CPU ${state.runtime.api_cpus.join(', ')}` : '未绑定 CPU' }}</span><span v-if="state.runtime.shared_cpus">可用 CPU 较少或配置重叠，部分队列共用</span><span v-else-if="state.runtime.affinity_applied">各队列分配独立的逻辑 CPU</span></div>
       <div class="queue-lanes"><article v-for="lane in state.lanes" :key="lane.id" :class="{'queue-paused':lane.paused||lane.blocked_by_master}"><div class="queue-lane-heading"><button type="button" class="text-button" @click="emit('lane', lane.id)"><strong>{{ lane.label }}</strong></button><span class="status-pill" :class="lane.paused||lane.blocked_by_master?'queued':lane.diagnostic?.state==='waiting'?'neutral':'success'">{{ statusLabel(lane) }}</span></div><span>{{ lane.counts.running }} 运行 · {{ lane.counts.queued }} 等待 · {{ lane.counts.failed }} 失败</span><small v-if="workers[lane.id]" class="queue-worker-info">{{ workerLabel(lane.id) }}</small><div v-for="reason in reasons(lane)" :key="reason.code" class="queue-reason"><p>{{ reason.message }}</p><small v-if="reason.source||reason.changed_at">{{ sourceLabel(reason.source) }}<template v-if="reason.changed_at"> · {{ date(reason.changed_at) }}</template></small><small v-if="reason.resume_at">预计恢复：{{ date(reason.resume_at) }}</small><p class="queue-recovery">{{ reason.action }}</p></div><form @submit.prevent="saveLane(lane)"><label>并发<input v-model.number="laneLimits[lane.id]" type="number" min="1" max="8" required :aria-label="`${lane.label}并发`" :disabled="busy" @input="dirtyLanes.add(lane.id)" /></label><button class="button secondary small" :disabled="busy">保存</button><button type="button" class="text-button" :disabled="busy" @click="saveLane(lane, true)">{{ lane.paused ? '恢复' : '暂停' }}</button></form></article></div><p v-if="state.lanes" class="field-hint">点击队列名称查看任务。队列独立运行；降低并发后，已执行的任务继续完成。采集总开关控制自动下载、详情和检查；手动下载和失败重试仅受各自开关控制。</p><div class="download-queue-counts"><span><strong>{{ state.counts.queued }}</strong>等待</span><span><strong>{{ state.counts.running }}</strong>处理中</span><span :class="{'danger-text': state.counts.failed > 0}"><strong>{{ state.counts.failed }}</strong>失败</span></div>
@@ -134,6 +152,7 @@ onBeforeUnmount(() => { disposed = true; requestId++; clearInterval(timer) })
 </template>
 
 <style scoped>
+.collection-sources{margin:20px 0;padding-bottom:18px;border-bottom:1px solid var(--line)}.collection-sources-heading,.collection-source-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.collection-sources h3{font-size:15px;color:var(--text)}.collection-sources-heading .field-hint{margin:0}.collection-source-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin:14px 0}.collection-source-grid article{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--line);border-radius:10px}.collection-source-heading strong{font-size:14px}.collection-source-state,.collection-source-grid small{font-size:12px;line-height:1.6;color:var(--text-secondary)}.collection-source-grid article.source-disabled{background:var(--surface-muted)}.collection-sources>.field-hint{line-height:1.8;margin-bottom:0}.request-limit-switch:disabled{cursor:wait;opacity:.65}
 .queue-pause-summary{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;margin-top:18px;background:var(--surface-warning);color:var(--text-warning);border:1px solid var(--line-warning);border-radius:8px;font-size:13px}.queue-pause-summary svg{margin-top:3px}.queue-pause-summary p{margin-top:5px;line-height:1.8}.queue-lane-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.queue-lanes article.queue-paused{border-color:var(--line-warning)}.queue-reason{font-size:13px;line-height:1.8;overflow-wrap:anywhere}.queue-reason small{display:block;margin-top:5px}.queue-recovery{color:var(--accent);margin-top:6px}.queue-lanes form{margin-top:auto}
 .queue-runtime {display:flex;gap:14px;flex-wrap:wrap;padding:14px 0;font-size:13px;color:var(--text-secondary);}.queue-runtime strong {color:var(--text-primary);}.queue-worker-info {overflow-wrap:anywhere;}
 
