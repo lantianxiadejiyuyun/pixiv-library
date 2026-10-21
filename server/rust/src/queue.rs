@@ -269,6 +269,7 @@ pub async fn job(State(s): State<AppState>, Path(id): Path<String>) -> Result<Js
 }
 pub async fn status(State(s): State<AppState>) -> Result<Json<Value>> {
     let row = control(&s).await?;
+    let proxy_ready = crate::network::managed_ready(&s).await.unwrap_or(false);
     let counts =
         s.db.query(
             "SELECT queue_lane,status,COUNT(*) AS n FROM jobs GROUP BY queue_lane,status",
@@ -310,6 +311,20 @@ pub async fn status(State(s): State<AppState>) -> Result<Json<Value>> {
                 "worker_unavailable",
                 "队列进程未启动或正在重启",
                 "检查 Rust 进程设置及数据库连接",
+            )
+        } else if !proxy_ready
+            && matches!(
+                id,
+                "download" | "details" | "checks" | "manual_download" | "retry"
+            )
+            && entry["counts"]["queued"].as_i64().unwrap_or(0) > 0
+            && entry["counts"]["running"].as_i64().unwrap_or(0) == 0
+        {
+            (
+                "waiting",
+                "proxy_unavailable",
+                "内置代理正在启动或恢复，平台任务等待代理就绪",
+                "检查内置代理状态与选中节点；独立 AI 等任务继续按各自配置执行",
             )
         } else if tasks::date(&row["backoff_until"])
             .is_some_and(|d| d > chrono::Utc::now().naive_utc())

@@ -285,6 +285,19 @@ pub async fn claim(s: &AppState, key: &str) -> Result<Option<Claim>> {
     if !queue::LANES.iter().any(|(k, _)| *k == key) {
         return Err(ApiError::bad("队列不存在"));
     }
+    let proxy_ready = if matches!(
+        key,
+        "download" | "details" | "checks" | "manual_download" | "retry"
+    ) {
+        crate::network::managed_ready(s).await?
+    } else {
+        true
+    };
+    let transport_filter = if proxy_ready {
+        "1=1"
+    } else {
+        "kind NOT IN ('import','import_content','source_sync','series_sync','author_profile','author_feed','pixiv_bookmark')"
+    };
     let mut tx = s.db.begin().await?;
     let control = queue::locked(s, &mut tx).await?;
     recover(s, &mut tx).await?;
@@ -313,7 +326,7 @@ pub async fn claim(s: &AppState, key: &str) -> Result<Option<Claim>> {
         .map(|(r, _, b, f)| available_filter(s, r, b, f.as_deref()))
         .unwrap_or_else(|| ("1=1".to_owned(), vec![]));
     args.insert(0, json!(key));
-    let candidates=tx.query(&format!("SELECT * FROM jobs WHERE queue_lane=? AND status='queued' AND({filter}) ORDER BY created_at,id LIMIT 64"),&args).await?;
+    let candidates=tx.query(&format!("SELECT * FROM jobs WHERE queue_lane=? AND status='queued' AND({filter}) AND({transport_filter}) ORDER BY created_at,id LIMIT 64"),&args).await?;
     let mut cursor = control["download_account_cursor"].as_u64().unwrap_or(0) as usize;
     let mut chosen = None;
     for mut job in candidates {

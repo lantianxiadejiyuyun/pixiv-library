@@ -388,6 +388,29 @@ pub async fn outbound_proxy(s: &AppState) -> Result<Option<String>> {
     }
     Ok(Some(u.to_string().replacen("socks5://", "socks5h://", 1)))
 }
+/// Workers must not consume platform jobs while the managed core is starting
+/// or restarting. This is only a bounded loopback readiness check, never a
+/// platform request or a direct-network fallback.
+pub async fn managed_ready(s: &AppState) -> Result<bool> {
+    if !secrets::mapped(s, "managed_proxy", |v| v["enabled"] == true)
+        .await?
+        .unwrap_or(false)
+    {
+        return Ok(true);
+    }
+    let port = std::env::var("LIBRARY_MIHOMO_PROXY_PORT")
+        .unwrap_or_else(|_| "17890".into())
+        .parse::<u16>()
+        .ok()
+        .filter(|p| *p >= 1024)
+        .ok_or_else(|| ApiError::bad("内置代理端口无效"))?;
+    Ok(tokio::time::timeout(
+        Duration::from_millis(300),
+        tokio::net::TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)),
+    )
+    .await
+    .is_ok_and(|r| r.is_ok()))
+}
 pub fn direct_client(timeout: Duration) -> Result<Client> {
     Client::builder()
         .no_proxy()

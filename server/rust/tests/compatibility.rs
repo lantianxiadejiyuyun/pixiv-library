@@ -638,6 +638,62 @@ async fn speed_streams_have_no_transform_and_release_the_slot_when_disconnected(
         .unwrap();
     assert_eq!(response.status(), 200);
 }
+#[tokio::test]
+async fn managed_proxy_startup_holds_platform_jobs_without_failing_or_blocking_independent_ai() {
+    let app = TestApp::new(false).await;
+    qiye_server::secrets::put(
+        &app.state,
+        "managed_proxy",
+        &json!({"enabled":true,"subscriptions":[],"selected_node_id":null}),
+    )
+    .await
+    .unwrap();
+    assert!(
+        qiye_server::tasks::claim(&app.state, "manual_download")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let (_, queues) = app.request("GET", "/api/queue/status", None).await;
+    let manual = queues["lanes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|l| l["id"] == "manual_download")
+        .unwrap();
+    // With no local supervisor it reports worker availability first. A live
+    // worker reports the proxy wait reason and never consumes the task.
+    assert_eq!(manual["counts"]["queued"], 1);
+    assert_eq!(
+        app.request(
+            "POST",
+            "/api/ai/analyze",
+            Some(json!({"item_ids":["item-1"]}))
+        )
+        .await
+        .0,
+        200
+    );
+    assert!(
+        qiye_server::tasks::claim(&app.state, "ai")
+            .await
+            .unwrap()
+            .is_some()
+    );
+    qiye_server::secrets::put(
+        &app.state,
+        "managed_proxy",
+        &json!({"enabled":false,"subscriptions":[],"selected_node_id":null}),
+    )
+    .await
+    .unwrap();
+    assert!(
+        qiye_server::tasks::claim(&app.state, "manual_download")
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
 struct TestApp {
     router: Router,
     state: AppState,
